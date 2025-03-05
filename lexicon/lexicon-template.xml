@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lexicon xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="1.0" producer="ELAN Lexicon Component" xsi:schemaLocation="http://www.mpi.nl/tools/elan/LexiconComponent-1.0.xsd">
+    <header>
+        <name>Gurung lexicon</name>
+        <language>Gurung</language>
+        <version>0.1.0</version>
+        <custom-fields>
+            <field-spec name="Loan_from" level="entry"></field-spec>
+        </custom-fields>
+    </header>
+    <entry id="e_8e52ef8b-485d-4085-b838-bbd350d5bb5d" dateCreated="2025-03-05T16:02:38.386Z" dateModified="2025-03-05T16:15:55.299Z" order="1">
+        <lexical-unit>-mari</lexical-unit>
+        <citation>-mari</citation>
+        <morph-type>suffix</morph-type>
+        <variant>-mora</variant>
+        <variant>-mara</variant>
+        <sense id="s_85f3d867-0ff0-4b00-869a-92b99e462f2d" order="1">
+            <grammatical-category>tam</grammatical-category>
+            <gloss>CV.SEQ</gloss>
+            <gloss lang="nep">-era</gloss>
+        </sense>
+    </entry>
+    <entry id="e_d25519fd-3e67-44c4-92a9-a09b7f813a48" dateCreated="2025-03-05T14:53:22.323Z" dateModified="2025-03-05T14:53:46.523Z" order="1">
+        <lexical-unit>-r</lexical-unit>
+        <morph-type>suffix</morph-type>
+        <sense id="s_7eb1f420-e242-4a30-9d9a-3d83d8fbe825" order="1">
+            <grammatical-category>case</grammatical-category>
+            <gloss>LOC</gloss>
+        </sense>
+    </entry>
+    <entry id="e_030661fe-307f-4b50-bde3-821dafa36753" dateCreated="2025-03-05T16:04:01.739Z" dateModified="2025-03-05T16:14:29.135Z" order="1">
+        <lexical-unit>-ũ</lexical-unit>
+        <citation>-ũ</citation>
+        <morph-type>suffix</morph-type>
+        <variant>-m</variant>
+        <sense id="s_26cbf48e-af42-488d-9be8-132d87314dbc" order="1">
+            <grammatical-category>tam</grammatical-category>
+            <gloss>NPST</gloss>
+        </sense>
+    </entry>
+    <entry id="e_f86e93d1-2bda-4edc-84d9-ab1c2165e1c5" dateCreated="2025-03-05T15:10:33.410Z" dateModified="2025-03-05T15:10:44.575Z" order="1">
+        <lexical-unit>bhina</lexical-unit>
+        <morph-type>stem</morph-type>
+        <sense id="s_3e960a68-2f93-41bd-8a7f-89edc3661fac" order="1">
+            <grammatical-category>n</grammatical-category>
+            <gloss>rooster</gloss>
+        </sense>
+    </entry>
+    <entry id="e_683f7952-f40e-4144-8350-f461af15137d" dateCreated="2025-03-05T15:09:04.134Z" dateModified="2025-03-05T16:13:33.255Z" order="1">
+        <lexical-unit>mausom</lexical-unit>
+        <morph-type>stem</morph-type>
+        <phonetic></phonetic>
+        <field name="Loan_from">nep</field>
+        <sense id="s_e2101892-b4c1-4cbc-897e-c3cce938afc4" order="1">
+            <grammatical-category>n</grammatical-category>
+            <gloss>weather</gloss>
+        </sense>
+    </entry>
+    <entry id="e_18ab2bed-a0ba-4abe-ad4b-c295321b58d4" dateCreated="2025-03-05T16:10:50.770Z" dateModified="2025-03-05T16:13:45.313Z" order="1">
+        <lexical-unit>video</lexical-unit>
+        <morph-type>stem</morph-type>
+        <field name="Loan_from">eng</field>
+        <sense id="s_d7c77b04-3fb1-482d-b87c-8171ddb37cee" order="1">
+            <grammatical-category>n</grammatical-category>
+            <gloss>video</gloss>
+        </sense>
+    </entry>
+</lexicon>

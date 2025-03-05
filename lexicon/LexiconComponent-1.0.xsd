@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+    xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" elementFormDefault="qualified"
+    vc:minVersion="1.0" vc:maxVersion="1.1">
+    <!-- 
+    <xs:import schemaLocation="http://www.w3.org/2001/xml.xsd" namespace="http://www.w3.org/XML/1998/namespace"/>
+     -->
+    <xs:element name="lexicon">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="header" type="header"/>
+                <xs:element name="entry" type="entry" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <!-- schema or format version -->
+            <xs:attribute name="schemaVersion" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>The version of the schema or format is also part of the schema location url/name.
+                        Could enforce the value with, in this case, default="1.0".
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:attribute>
+            <xs:attribute name="producer" type="xs:string" use="optional"/>
+        </xs:complexType>
+        
+        <xs:key name="entryKey">
+            <xs:selector xpath="entry"/>
+            <xs:field xpath="@id"/>
+        </xs:key>
+        <xs:keyref refer="entryKey" name="entryKeyRef">
+            <xs:selector xpath="entry"/>
+            <xs:field xpath="@entryRef"/>
+        </xs:keyref>
+    </xs:element>
+    
+    <xs:complexType name="header">
+        <!-- sub elements -->
+        <xs:sequence>
+            <xs:element name="name" type="xs:string"/>
+            <xs:element name="language" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>For now one language is allowed, the main language this lexicon is about 
+                        (this denotes the language of the lexical-unit, citation etc.). 
+                        ISO 639-3 3 letter code is assumed but not enforced (the type is xs:string)</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="description" type="xs:string" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>A free form textual description of and information on the lexicon.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="author" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="version" type="xs:string" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>The version of the lexicon itself, not the format version.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <!-- not fully supported yet: custom field specifications, field configuration, preferred sort order -->
+            <xs:element name="custom-fields" type="custom_field_specification" minOccurs="0"/>
+            <xs:element name="field-configs" type="field_configuration" minOccurs="0"/>
+            <xs:element name="sort-order" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!--  entry type -->
+    <xs:complexType name="entry">
+        <xs:sequence>
+            <xs:element name="lexical-unit" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>lexical-unit (LIFT terminology, a lexicon interchange format) instead of lemma / headword etc. 
+                        Assumes language is the "main" language.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="citation" type="xs:string" minOccurs="0"/>
+            <xs:element name="morph-type" type="xs:string" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>If not present, a default value is assumed. This element could/should be linked to a 
+                        controlled vocabulary (or a "range" in lift).</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="variant" type="xs:string" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Simple variant field, assumes the same morph-type and language as the lexical-unit</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="phonetic" type="phonetic" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Not fully supported yet.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="note" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="field" type="custom_field" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Provides a way to add custom fields to the lexicon.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="sense" type="sense" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:ID" use="required"/>
+        <xs:attribute name="dateCreated" type="xs:dateTime"/>
+        <xs:attribute name="dateModified" type="xs:dateTime"/>
+        <xs:attribute name="order" type="xs:int" use="optional">
+            <xs:annotation>
+                <xs:documentation>An attribute to explicitely set the order for entries with the same lexical-unit (e.g. homonyms).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="entryRef" type="xs:IDREF">
+            <xs:annotation>
+                <xs:documentation>A reference to a "parent" unit. Fields are "inherited" unless redefined.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+    
+    <!-- entry level (sub)elements -->  
+    <!-- sense type -->
+    <xs:complexType name="sense">
+        <xs:sequence>
+            <xs:element name="grammatical-category" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>Grammatical category or part of speech (in LIFT part of "grammatical-info").
+                    This element should/could be linked to a controlled vocabulary or "range".</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="gloss" type="gloss" minOccurs="1" maxOccurs="unbounded"/>
+            <xs:element name="definition" type="definition" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="example" type="example" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="comment" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="internal-note" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="field" type="custom_field" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:ID" use="required"/>
+        <xs:attribute name="order" type="xs:int" use="required">
+            <xs:annotation><xs:documentation>The sense number.</xs:documentation></xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+    
+    <!-- sense level (sub)elements -->
+    <!-- gloss and definition extend the complex type "text_lang". JAXB creates separate classes that extend the TextLang class -->
+    <xs:complexType name="gloss">
+        <xs:annotation><xs:documentation>Glosses can be specified in multiple languages.</xs:documentation></xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="text_lang"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <xs:complexType name="definition">
+        <xs:annotation><xs:documentation>Definitions can be specfied in multiple languages.</xs:documentation></xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="text_lang"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <xs:complexType name="phonetic">
+        <xs:annotation><xs:documentation>Phonetic representations can be specfied in multiple languages or systems.</xs:documentation></xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="text_lang"/>
+        </xs:simpleContent>
+    </xs:complexType>
+   
+    <xs:complexType name="text_lang">
+        <xs:annotation><xs:documentation>A type consisting of a string value and a language attribute.</xs:documentation></xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attributeGroup ref="language"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <xs:complexType name="example">
+        <xs:annotation>
+            <xs:documentation>An example element (not fully implemented yet).</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <!-- text and translation are of the same "text plus language" complex type  -->
+            <xs:element name="text" type="text_lang"/>
+            <xs:element name="translation" type="text_lang" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="source-ref" type="xs:string" minOccurs="0">
+                <xs:annotation><xs:documentation>A literature reference or similar</xs:documentation></xs:annotation>
+            </xs:element>
+            <xs:element name="fragment-ref" type="xs:anyURI" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>A reference to an annotation or (fragment of) a media file.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- common attribute -->
+    <xs:attributeGroup name="language">
+        <xs:annotation>
+            <xs:documentation>
+                This is currently of type string (free form).
+                Alternatives could be a 3 letter code, or xs:language, or a language-id reference (as in EAF).
+            </xs:documentation>
+        </xs:annotation>
+        <!-- --><xs:attribute name="lang" type="xs:string" use="optional"/>
+        <!-- <xs:attribute ref="xml:lang"/>  -->
+    </xs:attributeGroup>
+    
+    <!-- any 3 letter code? Not used. -->
+    <xs:simpleType name="three_letter_type">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="[a-z]{3}"/> 
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- a basic custom field on the level of entry and sense -->
+    <xs:complexType name="custom_field">
+        <xs:annotation>
+            <xs:documentation>
+               For adding user defined fields to lexical entries. Not supported yet.
+               The type of the name of the fields is at the moment defined as xs:NCName so that
+               in a conversion it can be used as an XML element name. 
+            </xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attributeGroup ref="language"/>
+                <xs:attribute name="name" type="xs:NCName" use="required"/>
+                <!-- maybe support an attribute like this, so that custom fields can be linked to multimedia fragments? -->
+                <xs:attribute name="mediaRef" type="xs:anyURI"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <!-- header elements of complex type, not fully implemented yet -->
+    <xs:complexType name="custom_field_specification">
+        <xs:annotation>
+            <xs:documentation>Specification of custom fields.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="field-spec" type="custom_field_spec" minOccurs="0" maxOccurs="unbounded"/>           
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="custom_field_spec">
+        <xs:annotation>
+            <xs:documentation>A specification for a single custom field.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="name" type="xs:NCName" use="required">
+                    <xs:annotation>
+                        <xs:documentation>The name of the field. 
+                            (The type is NCName so that in a conversion it can become an xml element.)</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="level" use="optional">
+                    <xs:annotation>
+                        <xs:documentation>Determines on what level(s) this field can occur.</xs:documentation>
+                    </xs:annotation>
+                    <xs:simpleType>
+                        <xs:restriction base="xs:string">
+                            <xs:enumeration value="entry"/>
+                            <xs:enumeration value="sense"/>
+                            <xs:enumeration value="all"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <xs:complexType name="field_configuration">
+        <xs:annotation>
+            <xs:documentation>Configuration of fields.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="field-config" type="field_config" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="field_config">
+        <xs:annotation>
+            <xs:documentation>Configuration of a single field.</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="fieldName" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>The name of one of the standard or custom fields.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="displayName" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>The preferred display label for the field (a hint for user interfaces).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="rangeRef" type="xs:string" use="optional"><!-- cv-ref ? -->
+            <xs:annotation>
+                <xs:documentation>A reference to the identifier or name of a controlled vocabulary or range.
+                    It is still to be decided where the ranges are stored and how to link to the definitions.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+</xs:schema>
