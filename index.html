@@ -107,6 +107,10 @@
             cursor: pointer;
             border-radius: 4px;
         }
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
         .button.danger {
             background-color: #d32f2f;
         }
@@ -114,6 +118,21 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
+        }
+        .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        .entry-status {
+            font-size: 14px;
+            color: #666;
+        }
+        .entry-status.modified {
+            color: #1976d2;
         }
         .form-group {
             display: flex;
@@ -224,6 +243,11 @@
                         </div>
                         
                         <div id="entryDetails" class="hidden">
+                            <div class="entry-header">
+                                <h2>Entry Details</h2>
+                                <span class="entry-status" id="entryStatus">No changes</span>
+                            </div>
+                            
                             <div class="form-group">
                                 <label for="lexicalUnit">Lexical Unit</label>
                                 <input type="text" id="lexicalUnit" />
@@ -257,6 +281,9 @@
                         </div>
                     </div>
                 </div>
+                <div class="panel-footer">
+                    <button class="button" id="discardChangesBtn" disabled>Discard Changes</button>
+                </div>
             </div>
         </div>
     </div>
@@ -289,6 +316,9 @@
         let lexicon = null;
         let selectedEntry = null;
         let currentFile = null;
+        let isModified = false;
+        let entryHasChanges = false;
+        let originalEntry = null;
         
         // DOM Elements
         const newLexiconBtn = document.getElementById('newLexiconBtn');
@@ -312,6 +342,8 @@
         const cancelNewLexiconBtn = document.getElementById('cancelNewLexiconBtn');
         const createNewLexiconBtn = document.getElementById('createNewLexiconBtn');
         const fileNameElement = document.getElementById('fileName');
+        const entryStatusElement = document.getElementById('entryStatus');
+        const discardChangesBtn = document.getElementById('discardChangesBtn');
         
         // Event Listeners
         newLexiconBtn.addEventListener('click', showNewLexiconDialog);
@@ -322,6 +354,7 @@
         addSenseBtn.addEventListener('click', handleAddSense);
         cancelNewLexiconBtn.addEventListener('click', hideNewLexiconDialog);
         createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
+        discardChangesBtn.addEventListener('click', handleDiscardChanges);
         
         // Functions
         function showNewLexiconDialog() {
@@ -458,8 +491,49 @@
             renderEntryForm();
         }
         
+        function handleDiscardChanges() {
+            if (!selectedEntry) return;
+            
+            if (entryHasChanges) {
+                if (originalEntry) {
+                    // Restore original entry
+                    Object.assign(selectedEntry, originalEntry);
+                } else {
+                    // Remove new entry
+                    lexicon.entry = lexicon.entry.filter(entry => entry.$.id !== selectedEntry.$.id);
+                }
+                entryHasChanges = false;
+                updateEntryStatus();
+                renderLexiconTable();
+                renderEntryForm();
+            }
+        }
+        
+        function updateEntryStatus() {
+            if (!selectedEntry) {
+                entryStatusElement.textContent = '';
+                entryStatusElement.classList.remove('modified');
+                discardChangesBtn.disabled = true;
+                return;
+            }
+            
+            if (entryHasChanges) {
+                entryStatusElement.textContent = 'Modified';
+                entryStatusElement.classList.add('modified');
+                discardChangesBtn.disabled = false;
+            } else {
+                entryStatusElement.textContent = 'No changes';
+                entryStatusElement.classList.remove('modified');
+                discardChangesBtn.disabled = true;
+            }
+        }
+        
         function selectEntry(entry) {
             selectedEntry = entry;
+            // Store a deep copy of the original entry
+            originalEntry = JSON.parse(JSON.stringify(entry));
+            entryHasChanges = false;
+            updateEntryStatus();
             renderEntryForm();
             
             // Highlight the selected row
@@ -491,7 +565,9 @@
             });
             
             isModified = true;
+            entryHasChanges = true;
             updateFileName();
+            updateEntryStatus();
             renderLexiconTable();
         }
         
