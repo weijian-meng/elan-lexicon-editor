@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lexicon schemaVersion="1.0" producer="ELAN Lexicon Editor">
+  <header>
+    <name>new-lexicon-test</name>
+    <language>Gurung</language>
+    <description/>
+    <version>1.0</version>
+  </header>
+  <entry id="e_ad6a61f3-3e5d-4bc8-b94e-29764cc9825f" dateCreated="2025-03-24T17:49:13.358Z" dateModified="2025-03-24T17:49:30.029Z">
+    <lexical-unit>-asdf</lexical-unit>
+    <morph-type>-s</morph-type>
+    <sense id="s_ee9dbacc-cfd4-4d43-b6d2-7320cbd865a9" order="1">
+      <grammatical-category>n</grammatical-category>
+      <gloss>dsfsaf</gloss>
+    </sense>
+  </entry>
+</lexicon>
