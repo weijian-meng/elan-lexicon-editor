@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ELAN Lexicon Editor</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .toolbar {
+            background-color: #1976d2;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .toolbar h1 {
+            margin: 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toolbar-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .toolbar-button {
+            background: none;
+            border: 1px solid white;
+            color: white;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .main-content {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            background-color: #f5f5f5;
+            overflow: hidden;
+        }
+        .panel {
+            flex: 1;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+        .panel-footer {
+            padding: 10px 20px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+        .lexicon-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .lexicon-table th, .lexicon-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .lexicon-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .lexicon-table tr.selected {
+            background-color: #e3f2fd;
+        }
+        .lexicon-table th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            background-color: #f1f1f1;
+            color: black;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .button.danger {
+            background-color: #d32f2f;
+        }
+        .entry-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-group label {
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .sense-section {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .sense-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .dialog {
+            background-color: white;
+            border-radius: 4px;
+            width: 400px;
+            padding: 20px;
+        }
+        .dialog-header {
+            margin-bottom: 20px;
+        }
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .file-name {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .file-name.modified::after {
+            content: " *";
+            color: #ffd700;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="toolbar">
+            <h1>
+                Lexicon Editor
+                <span class="file-name" id="fileName">No file open</span>
+            </h1>
+            <div class="toolbar-actions">
+                <button class="toolbar-button" id="newLexiconBtn">New Lexicon</button>
+                <button class="toolbar-button" id="openFileBtn">Open</button>
+                <button class="toolbar-button" id="saveFileBtn">Save</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <div class="panel-content">
+                    <table class="lexicon-table" id="lexiconTable">
+                        <thead>
+                            <tr>
+                                <th>Lexical Unit</th>
+                                <th>Morph Type</th>
+                                <th>Grammatical Category</th>
+                                <th>Gloss</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lexiconTableBody">
+                            <!-- Entries will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <button class="button" id="addEntryBtn">Add Entry</button>
+                    <button class="button danger" id="removeEntryBtn">Remove Entry</button>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-content">
+                    <div class="entry-form" id="entryForm">
+                        <div id="emptySelection">
+                            <p>Select an entry to edit or create a new one</p>
+                        </div>
+                        
+                        <div id="entryDetails" class="hidden">
+                            <div class="form-group">
+                                <label for="lexicalUnit">Lexical Unit</label>
+                                <input type="text" id="lexicalUnit" />
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="morphType">Morph Type</label>
+                                <input type="text" id="morphType" />
+                            </div>
+                            
+                            <div id="sensesContainer">
+                                <!-- Senses will be added here -->
+                            </div>
+                            
+                            <button class="button" id="addSenseBtn">Add Sense</button>
+                            
+                            <div class="form-group">
+                                <label>ID</label>
+                                <input type="text" id="entryId" disabled />
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Date Created</label>
+                                <input type="text" id="dateCreated" disabled />
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Date Modified</label>
+                                <input type="text" id="dateModified" disabled />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="newLexiconDialog" class="dialog-overlay hidden">
+        <div class="dialog">
+            <div class="dialog-header">
+                <h2>Create New Lexicon</h2>
+            </div>
+            <div class="form-group">
+                <label for="lexiconName">Lexicon Name</label>
+                <input type="text" id="lexiconName" />
+            </div>
+            <div class="form-group">
+                <label for="lexiconLanguage">Language</label>
+                <input type="text" id="lexiconLanguage" />
+            </div>
+            <div class="dialog-footer">
+                <button class="button" id="cancelNewLexiconBtn">Cancel</button>
+                <button class="button" id="createNewLexiconBtn">Create</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const { ipcRenderer } = require('electron');
+        const { v4: uuidv4 } = require('uuid');
+        
+        // State
+        let lexicon = null;
+        let selectedEntry = null;
+        let currentFile = null;
+        
+        // DOM Elements
+        const newLexiconBtn = document.getElementById('newLexiconBtn');
+        const openFileBtn = document.getElementById('openFileBtn');
+        const saveFileBtn = document.getElementById('saveFileBtn');
+        const addEntryBtn = document.getElementById('addEntryBtn');
+        const removeEntryBtn = document.getElementById('removeEntryBtn');
+        const lexiconTableBody = document.getElementById('lexiconTableBody');
+        const emptySelection = document.getElementById('emptySelection');
+        const entryDetails = document.getElementById('entryDetails');
+        const lexicalUnitInput = document.getElementById('lexicalUnit');
+        const morphTypeInput = document.getElementById('morphType');
+        const sensesContainer = document.getElementById('sensesContainer');
+        const addSenseBtn = document.getElementById('addSenseBtn');
+        const entryIdInput = document.getElementById('entryId');
+        const dateCreatedInput = document.getElementById('dateCreated');
+        const dateModifiedInput = document.getElementById('dateModified');
+        const newLexiconDialog = document.getElementById('newLexiconDialog');
+        const lexiconNameInput = document.getElementById('lexiconName');
+        const lexiconLanguageInput = document.getElementById('lexiconLanguage');
+        const cancelNewLexiconBtn = document.getElementById('cancelNewLexiconBtn');
+        const createNewLexiconBtn = document.getElementById('createNewLexiconBtn');
+        const fileNameElement = document.getElementById('fileName');
+        
+        // Event Listeners
+        newLexiconBtn.addEventListener('click', showNewLexiconDialog);
+        openFileBtn.addEventListener('click', handleOpenFile);
+        saveFileBtn.addEventListener('click', handleSaveFile);
+        addEntryBtn.addEventListener('click', handleAddEntry);
+        removeEntryBtn.addEventListener('click', handleRemoveEntry);
+        addSenseBtn.addEventListener('click', handleAddSense);
+        cancelNewLexiconBtn.addEventListener('click', hideNewLexiconDialog);
+        createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
+        
+        // Functions
+        function showNewLexiconDialog() {
+            newLexiconDialog.classList.remove('hidden');
+        }
+        
+        function hideNewLexiconDialog() {
+            newLexiconDialog.classList.add('hidden');
+            lexiconNameInput.value = '';
+            lexiconLanguageInput.value = '';
+        }
+        
+        async function handleOpenFile() {
+            const result = await ipcRenderer.invoke('open-file');
+            if (result) {
+                const { filePath, content } = result;
+                const parsedXml = await ipcRenderer.invoke('parse-xml', content);
+                lexicon = parsedXml.lexicon;
+                currentFile = filePath;
+                isModified = false;
+                updateFileName();
+                renderLexiconTable();
+                clearEntryForm();
+            }
+        }
+        
+        async function handleSaveFile() {
+            if (!currentFile) {
+                const result = await ipcRenderer.invoke('save-file-dialog');
+                if (result) {
+                    currentFile = result;
+                } else {
+                    return;
+                }
+            }
+            
+            if (currentFile && lexicon) {
+                const xmlString = await ipcRenderer.invoke('build-xml', { lexicon });
+                await ipcRenderer.invoke('save-file', { filePath: currentFile, content: xmlString });
+                isModified = false;
+                updateFileName();
+            }
+        }
+        
+        function handleCreateNewLexicon() {
+            const name = lexiconNameInput.value;
+            const language = lexiconLanguageInput.value;
+            
+            if (!name || !language) {
+                alert('Please provide both lexicon name and language.');
+                return;
+            }
+            
+            lexicon = {
+                $: {
+                    schemaVersion: '1.0',
+                    producer: 'ELAN Lexicon Editor'
+                },
+                header: {
+                    name: [name],
+                    language: [language],
+                    description: [''],
+                    author: [],
+                    version: ['1.0'],
+                    'custom-fields': [],
+                    'field-configs': [],
+                    'sort-order': []
+                },
+                entry: []
+            };
+            
+            currentFile = null;
+            isModified = true;
+            updateFileName();
+            hideNewLexiconDialog();
+            renderLexiconTable();
+            clearEntryForm();
+        }
+        
+        function handleAddEntry() {
+            if (!lexicon) {
+                alert('Please create or open a lexicon first.');
+                return;
+            }
+            
+            const newEntry = {
+                $: {
+                    id: `e_${uuidv4()}`,
+                    dateCreated: new Date().toISOString(),
+                    dateModified: new Date().toISOString(),
+                },
+                'lexical-unit': [''],
+                'morph-type': [''],
+                sense: [{
+                    $: {
+                        id: `s_${uuidv4()}`,
+                        order: '1'
+                    },
+                    'grammatical-category': [''],
+                    gloss: ['']
+                }]
+            };
+            
+            if (!lexicon.entry) {
+                lexicon.entry = [];
+            }
+            
+            lexicon.entry.push(newEntry);
+            renderLexiconTable();
+            selectEntry(newEntry);
+        }
+        
+        function handleRemoveEntry() {
+            if (!selectedEntry) return;
+            
+            lexicon.entry = lexicon.entry.filter(entry => entry.$.id !== selectedEntry.$.id);
+            renderLexiconTable();
+            clearEntryForm();
+        }
+        
+        function handleAddSense() {
+            if (!selectedEntry) return;
+            
+            const newSense = {
+                $: {
+                    id: `s_${uuidv4()}`,
+                    order: String(selectedEntry.sense.length + 1),
+                },
+                'grammatical-category': [''],
+                gloss: ['']
+            };
+            
+            selectedEntry.sense.push(newSense);
+            renderEntryForm();
+        }
+        
+        function selectEntry(entry) {
+            selectedEntry = entry;
+            renderEntryForm();
+            
+            // Highlight the selected row
+            const rows = lexiconTableBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                if (row.dataset.entryId === entry.$.id) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            });
+        }
+        
+        function updateEntry() {
+            if (!selectedEntry) return;
+            
+            selectedEntry['lexical-unit'] = [lexicalUnitInput.value];
+            selectedEntry['morph-type'] = [morphTypeInput.value];
+            selectedEntry.$.dateModified = new Date().toISOString();
+            
+            // Update senses
+            const senseElements = sensesContainer.querySelectorAll('.sense-section');
+            senseElements.forEach((senseElement, index) => {
+                const grammaticalCategoryInput = senseElement.querySelector('.grammatical-category');
+                const glossInput = senseElement.querySelector('.gloss');
+                
+                selectedEntry.sense[index]['grammatical-category'] = [grammaticalCategoryInput.value];
+                selectedEntry.sense[index].gloss = [glossInput.value];
+            });
+            
+            isModified = true;
+            updateFileName();
+            renderLexiconTable();
+        }
+        
+        function renderLexiconTable() {
+            lexiconTableBody.innerHTML = '';
+            
+            if (!lexicon || !lexicon.entry) return;
+            
+            lexicon.entry.forEach(entry => {
+                const row = document.createElement('tr');
+                row.dataset.entryId = entry.$.id;
+                
+                const lexicalUnitCell = document.createElement('td');
+                lexicalUnitCell.textContent = entry['lexical-unit']?.[0] || '';
+                
+                const morphTypeCell = document.createElement('td');
+                morphTypeCell.textContent = entry['morph-type']?.[0] || '';
+                
+                const grammaticalCategoryCell = document.createElement('td');
+                grammaticalCategoryCell.textContent = entry.sense?.[0]?.['grammatical-category']?.[0] || '';
+                
+                const glossCell = document.createElement('td');
+                glossCell.textContent = entry.sense?.[0]?.gloss?.[0] || '';
+                
+                row.appendChild(lexicalUnitCell);
+                row.appendChild(morphTypeCell);
+                row.appendChild(grammaticalCategoryCell);
+                row.appendChild(glossCell);
+                
+                row.addEventListener('click', () => selectEntry(entry));
+                
+                lexiconTableBody.appendChild(row);
+            });
+        }
+        
+        function clearEntryForm() {
+            selectedEntry = null;
+            emptySelection.classList.remove('hidden');
+            entryDetails.classList.add('hidden');
+        }
+        
+        function renderEntryForm() {
+            if (!selectedEntry) {
+                emptySelection.classList.remove('hidden');
+                entryDetails.classList.add('hidden');
+                return;
+            }
+            
+            emptySelection.classList.add('hidden');
+            entryDetails.classList.remove('hidden');
+            
+            lexicalUnitInput.value = selectedEntry['lexical-unit']?.[0] || '';
+            morphTypeInput.value = selectedEntry['morph-type']?.[0] || '';
+            entryIdInput.value = selectedEntry.$.id || '';
+            dateCreatedInput.value = selectedEntry.$.dateCreated || '';
+            dateModifiedInput.value = selectedEntry.$.dateModified || '';
+            
+            // Update inputs on change
+            lexicalUnitInput.onchange = updateEntry;
+            morphTypeInput.onchange = updateEntry;
+            
+            // Render senses
+            sensesContainer.innerHTML = '';
+            
+            selectedEntry.sense.forEach((sense, index) => {
+                const senseSection = document.createElement('div');
+                senseSection.className = 'sense-section';
+                
+                const senseHeader = document.createElement('div');
+                senseHeader.className = 'sense-header';
+                
+                const senseTitle = document.createElement('h3');
+                senseTitle.textContent = `Sense ${index + 1}`;
+                
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.className = 'button danger';
+                removeButton.disabled = selectedEntry.sense.length <= 1;
+                removeButton.onclick = () => {
+                    selectedEntry.sense = selectedEntry.sense.filter((_, i) => i !== index);
+                    renderEntryForm();
+                    updateEntry();
+                };
+                
+                senseHeader.appendChild(senseTitle);
+                senseHeader.appendChild(removeButton);
+                
+                const grammaticalCategoryGroup = document.createElement('div');
+                grammaticalCategoryGroup.className = 'form-group';
+                
+                const grammaticalCategoryLabel = document.createElement('label');
+                grammaticalCategoryLabel.textContent = 'Grammatical Category';
+                
+                const grammaticalCategoryInput = document.createElement('input');
+                grammaticalCategoryInput.type = 'text';
+                grammaticalCategoryInput.className = 'grammatical-category';
+                grammaticalCategoryInput.value = sense['grammatical-category']?.[0] || '';
+                grammaticalCategoryInput.onchange = updateEntry;
+                
+                grammaticalCategoryGroup.appendChild(grammaticalCategoryLabel);
+                grammaticalCategoryGroup.appendChild(grammaticalCategoryInput);
+                
+                const glossGroup = document.createElement('div');
+                glossGroup.className = 'form-group';
+                
+                const glossLabel = document.createElement('label');
+                glossLabel.textContent = 'Gloss';
+                
+                const glossInput = document.createElement('input');
+                glossInput.type = 'text';
+                glossInput.className = 'gloss';
+                glossInput.value = sense.gloss?.[0] || '';
+                glossInput.onchange = updateEntry;
+                
+                glossGroup.appendChild(glossLabel);
+                glossGroup.appendChild(glossInput);
+                
+                senseSection.appendChild(senseHeader);
+                senseSection.appendChild(grammaticalCategoryGroup);
+                senseSection.appendChild(glossGroup);
+                
+                sensesContainer.appendChild(senseSection);
+            });
+        }
+        
+        function updateFileName() {
+            if (currentFile) {
+                const name = currentFile.split('/').pop();
+                fileNameElement.textContent = name;
+                fileNameElement.classList.toggle('modified', isModified);
+            } else {
+                fileNameElement.textContent = 'No file open';
+                fileNameElement.classList.remove('modified');
+            }
+        }
+    </script>
+</body>
+</html> 
