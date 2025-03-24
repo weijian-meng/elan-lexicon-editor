@@ -196,6 +196,80 @@
             content: " *";
             color: #ffd700;
         }
+        .config-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .config-tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+        }
+        .config-tab.active {
+            color: #1976d2;
+            border-bottom-color: #1976d2;
+        }
+        .config-section {
+            display: none;
+        }
+        .config-section.active {
+            display: block;
+        }
+        .tree-view {
+            margin-left: 20px;
+        }
+        .tree-item {
+            margin: 5px 0;
+        }
+        .tree-item-content {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tree-item-children {
+            margin-left: 20px;
+            border-left: 1px solid #ddd;
+            padding-left: 10px;
+        }
+        .tree-item-icon {
+            cursor: pointer;
+            user-select: none;
+        }
+        .tree-item-label {
+            flex: 1;
+        }
+        .tree-item-actions {
+            display: none;
+        }
+        .tree-item:hover .tree-item-actions {
+            display: inline-flex;
+            gap: 5px;
+        }
+        .custom-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .custom-field input {
+            flex: 1;
+        }
+        .custom-field select {
+            width: 100px;
+        }
+        .sort-order-input {
+            width: 100%;
+            height: 100px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -232,6 +306,7 @@
                 <div class="panel-footer">
                     <button class="button" id="addEntryBtn">Add Entry</button>
                     <button class="button danger" id="removeEntryBtn">Remove Entry</button>
+                    <button class="button" id="configBtn">Config</button>
                 </div>
             </div>
             
@@ -308,6 +383,67 @@
         </div>
     </div>
     
+    <div id="configDialog" class="dialog-overlay hidden">
+        <div class="dialog">
+            <div class="dialog-header">
+                <h2>Lexicon Configuration</h2>
+            </div>
+            <div class="config-tabs">
+                <button class="config-tab active" data-tab="information">Information</button>
+                <button class="config-tab" data-tab="fields">Fields</button>
+                <button class="config-tab" data-tab="sort">Sort Order</button>
+            </div>
+            
+            <div id="informationSection" class="config-section active">
+                <div class="form-group">
+                    <label for="configName">Name</label>
+                    <input type="text" id="configName" />
+                </div>
+                <div class="form-group">
+                    <label for="configLanguage">Language</label>
+                    <input type="text" id="configLanguage" />
+                </div>
+                <div class="form-group">
+                    <label for="configDescription">Description</label>
+                    <input type="text" id="configDescription" />
+                </div>
+                <div class="form-group">
+                    <label for="configAuthor">Author</label>
+                    <input type="text" id="configAuthor" />
+                </div>
+                <div class="form-group">
+                    <label for="configVersion">Version</label>
+                    <input type="text" id="configVersion" />
+                </div>
+            </div>
+            
+            <div id="fieldsSection" class="config-section">
+                <div class="tree-view" id="fieldsTree">
+                    <!-- Tree will be populated dynamically -->
+                </div>
+                <div class="form-group">
+                    <label>Custom Fields</label>
+                    <div id="customFieldsList">
+                        <!-- Custom fields will be populated dynamically -->
+                    </div>
+                    <button class="button" id="addCustomFieldBtn">Add Custom Field</button>
+                </div>
+            </div>
+            
+            <div id="sortSection" class="config-section">
+                <div class="form-group">
+                    <label for="sortOrder">Sort Order Definition</label>
+                    <textarea id="sortOrder" class="sort-order-input" placeholder="Enter sort order definition..."></textarea>
+                </div>
+            </div>
+            
+            <div class="dialog-footer">
+                <button class="button" id="cancelConfigBtn">Cancel</button>
+                <button class="button" id="saveConfigBtn">Save</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         const { ipcRenderer } = require('electron');
         const { v4: uuidv4 } = require('uuid');
@@ -344,6 +480,15 @@
         const fileNameElement = document.getElementById('fileName');
         const entryStatusElement = document.getElementById('entryStatus');
         const discardChangesBtn = document.getElementById('discardChangesBtn');
+        const configBtn = document.getElementById('configBtn');
+        const configDialog = document.getElementById('configDialog');
+        const cancelConfigBtn = document.getElementById('cancelConfigBtn');
+        const saveConfigBtn = document.getElementById('saveConfigBtn');
+        const configTabs = document.querySelectorAll('.config-tab');
+        const configSections = document.querySelectorAll('.config-section');
+        const fieldsTree = document.getElementById('fieldsTree');
+        const customFieldsList = document.getElementById('customFieldsList');
+        const addCustomFieldBtn = document.getElementById('addCustomFieldBtn');
         
         // Event Listeners
         newLexiconBtn.addEventListener('click', showNewLexiconDialog);
@@ -355,6 +500,20 @@
         cancelNewLexiconBtn.addEventListener('click', hideNewLexiconDialog);
         createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
         discardChangesBtn.addEventListener('click', handleDiscardChanges);
+        configBtn.addEventListener('click', showConfigDialog);
+        cancelConfigBtn.addEventListener('click', hideConfigDialog);
+        saveConfigBtn.addEventListener('click', handleSaveConfig);
+        addCustomFieldBtn.addEventListener('click', handleAddCustomField);
+        
+        configTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+                configTabs.forEach(t => t.classList.remove('active'));
+                configSections.forEach(s => s.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`${targetTab}Section`).classList.add('active');
+            });
+        });
         
         // Functions
         function showNewLexiconDialog() {
@@ -413,16 +572,16 @@
                     schemaVersion: '1.0',
                     producer: 'ELAN Lexicon Editor'
                 },
-                header: {
+                header: [{
                     name: [name],
                     language: [language],
                     description: [''],
                     author: [],
                     version: ['1.0'],
-                    'custom-fields': [],
+                    'custom-fields': [{}],
                     'field-configs': [],
                     'sort-order': []
-                },
+                }],
                 entry: []
             };
             
@@ -702,6 +861,251 @@
                 fileNameElement.textContent = 'No file open';
                 fileNameElement.classList.remove('modified');
             }
+        }
+        
+        function showConfigDialog() {
+            if (!lexicon) {
+                alert('Please create or open a lexicon first.');
+                return;
+            }
+            
+            console.log('Lexicon header:', JSON.stringify(lexicon.header, null, 2)); // Debug log
+            
+            // Get the first header element since the header is an array
+            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
+            
+            // Populate information section
+            document.getElementById('configName').value = header.name?.[0] || '';
+            document.getElementById('configLanguage').value = header.language?.[0] || '';
+            document.getElementById('configDescription').value = header.description?.[0] || '';
+            document.getElementById('configAuthor').value = header.author?.[0] || '';
+            document.getElementById('configVersion').value = header.version?.[0] || '';
+            
+            // Populate fields tree
+            renderFieldsTree(header);
+            
+            // Populate custom fields
+            renderCustomFields(header);
+            
+            // Populate sort order
+            document.getElementById('sortOrder').value = header['sort-order']?.[0] || '';
+            
+            configDialog.classList.remove('hidden');
+        }
+        
+        function hideConfigDialog() {
+            configDialog.classList.add('hidden');
+        }
+        
+        function renderFieldsTree(header) {
+            fieldsTree.innerHTML = '';
+            
+            // Create root node for entry
+            const entryNode = createTreeItem('entry', 'root');
+            fieldsTree.appendChild(entryNode);
+            
+            // Add standard entry-level fields
+            const entryFields = ['lexical-unit', 'morph-type'];
+            entryFields.forEach(field => {
+                const fieldElement = createTreeItem(field, 'entry');
+                entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
+            });
+            
+            // Add sense node
+            const senseNode = createTreeItem('sense', 'entry');
+            entryNode.querySelector('.tree-item-children').appendChild(senseNode);
+            
+            // Add sense-level fields
+            const senseFields = ['grammatical-category', 'gloss'];
+            senseFields.forEach(field => {
+                const fieldElement = createTreeItem(field, 'sense');
+                senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
+            });
+            
+            // Add custom fields if they exist
+            if (header['custom-fields'] && header['custom-fields'][0]) {
+                const customFieldsContainer = header['custom-fields'][0];
+                
+                // Handle the case where field-spec is an array
+                if (Array.isArray(customFieldsContainer['field-spec'])) {
+                    customFieldsContainer['field-spec'].forEach(field => {
+                        if (field && field.$) {
+                            const fieldElement = createTreeItem(`${field.$.name} (custom)`, field.$.level || 'entry');
+                            if (field.$.level === 'entry' || !field.$.level) {
+                                entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
+                            } else if (field.$.level === 'sense') {
+                                senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
+                            }
+                        }
+                    });
+                } 
+                // Handle the case where field-spec is a single object
+                else if (customFieldsContainer['field-spec'] && customFieldsContainer['field-spec'].$) {
+                    const field = customFieldsContainer['field-spec'];
+                    const fieldElement = createTreeItem(`${field.$.name} (custom)`, field.$.level || 'entry');
+                    if (field.$.level === 'entry' || !field.$.level) {
+                        entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
+                    } else if (field.$.level === 'sense') {
+                        senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
+                    }
+                }
+            }
+        }
+        
+        function createTreeItem(name, level) {
+            const div = document.createElement('div');
+            div.className = 'tree-item';
+            
+            const content = document.createElement('div');
+            content.className = 'tree-item-content';
+            
+            const icon = document.createElement('span');
+            icon.className = 'tree-item-icon';
+            icon.textContent = '▶';
+            icon.onclick = () => {
+                const children = div.querySelector('.tree-item-children');
+                if (children) {
+                    children.style.display = children.style.display === 'none' ? 'block' : 'none';
+                    icon.textContent = children.style.display === 'none' ? '▶' : '▼';
+                }
+            };
+            
+            const label = document.createElement('span');
+            label.className = 'tree-item-label';
+            label.textContent = name;
+            
+            content.appendChild(icon);
+            content.appendChild(label);
+            div.appendChild(content);
+            
+            // Add children container if not a leaf node
+            if (level !== 'leaf') {
+                const children = document.createElement('div');
+                children.className = 'tree-item-children';
+                div.appendChild(children);
+            }
+            
+            return div;
+        }
+        
+        function renderCustomFields(header) {
+            customFieldsList.innerHTML = '';
+            
+            if (header['custom-fields'] && header['custom-fields'][0]) {
+                const customFieldsContainer = header['custom-fields'][0];
+                
+                // Handle the case where field-spec is an array
+                if (Array.isArray(customFieldsContainer['field-spec'])) {
+                    customFieldsContainer['field-spec'].forEach(field => {
+                        if (field && field.$) {
+                            const fieldElement = createCustomFieldElement({
+                                name: field.$.name || '',
+                                level: field.$.level || 'entry'
+                            });
+                            customFieldsList.appendChild(fieldElement);
+                        }
+                    });
+                } 
+                // Handle the case where field-spec is a single object
+                else if (customFieldsContainer['field-spec'] && customFieldsContainer['field-spec'].$) {
+                    const field = customFieldsContainer['field-spec'];
+                    const fieldElement = createCustomFieldElement({
+                        name: field.$.name || '',
+                        level: field.$.level || 'entry'
+                    });
+                    customFieldsList.appendChild(fieldElement);
+                }
+            }
+        }
+        
+        function createCustomFieldElement(field) {
+            const div = document.createElement('div');
+            div.className = 'custom-field';
+            
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.value = field.name || '';
+            nameInput.placeholder = 'Field name';
+            
+            const levelSelect = document.createElement('select');
+            levelSelect.innerHTML = `
+                <option value="entry" ${field.level === 'entry' ? 'selected' : ''}>Entry</option>
+                <option value="sense" ${field.level === 'sense' ? 'selected' : ''}>Sense</option>
+            `;
+            
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Remove';
+            removeButton.className = 'button danger';
+            removeButton.onclick = () => div.remove();
+            
+            div.appendChild(nameInput);
+            div.appendChild(levelSelect);
+            div.appendChild(removeButton);
+            
+            return div;
+        }
+        
+        function handleAddCustomField() {
+            const fieldElement = createCustomFieldElement({ name: '', level: 'entry' });
+            customFieldsList.appendChild(fieldElement);
+        }
+        
+        function handleSaveConfig() {
+            // Get the first header element since the header is an array
+            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
+            
+            // Preserve existing header information and only update changed fields
+            const nameInput = document.getElementById('configName');
+            const languageInput = document.getElementById('configLanguage');
+            const descriptionInput = document.getElementById('configDescription');
+            const authorInput = document.getElementById('configAuthor');
+            const versionInput = document.getElementById('configVersion');
+            const sortOrderInput = document.getElementById('sortOrder');
+            
+            // Update only non-empty fields
+            if (nameInput.value) header.name = [nameInput.value];
+            if (languageInput.value) header.language = [languageInput.value];
+            if (descriptionInput.value) header.description = [descriptionInput.value];
+            if (authorInput.value) header.author = [authorInput.value];
+            if (versionInput.value) header.version = [versionInput.value];
+            if (sortOrderInput.value) header['sort-order'] = [sortOrderInput.value];
+            
+            // Prepare custom fields in the correct format for XML
+            const fieldSpecs = [];
+            customFieldsList.querySelectorAll('.custom-field').forEach(fieldElement => {
+                const nameInput = fieldElement.querySelector('input');
+                const levelSelect = fieldElement.querySelector('select');
+                
+                // Sanitize the field name to ensure XML compatibility
+                // Replace invalid characters with underscores
+                let fieldName = nameInput.value;
+                fieldName = fieldName.replace(/[^a-zA-Z0-9_]/g, '_');
+                
+                if (fieldName) {
+                    fieldSpecs.push({
+                        $: {
+                            name: fieldName,
+                            level: levelSelect.value
+                        }
+                    });
+                }
+            });
+            
+            // Only update custom fields if there are any
+            if (fieldSpecs.length > 0) {
+                // Ensure the header has a custom-fields array
+                if (!header['custom-fields']) {
+                    header['custom-fields'] = [{}];
+                }
+                // Update or create the field-spec array inside custom-fields
+                header['custom-fields'][0]['field-spec'] = fieldSpecs;
+            }
+            
+            console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2)); // Debug updated header
+            
+            isModified = true;
+            updateFileName();
+            hideConfigDialog();
         }
     </script>
 </body>
