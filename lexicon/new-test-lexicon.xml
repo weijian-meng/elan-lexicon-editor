@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lexicon schemaVersion="1.0" producer="ELAN Lexicon Editor">
+  <header>
+    <name>new-test-lexicon</name>
+    <language>Saek</language>
+    <description/>
+    <version>1.0</version>
+    <custom-fields/>
+  </header>
+  <entry id="e_a0b21790-fb87-450e-985f-5d0debe2d185" dateCreated="2025-03-25T08:44:04.774Z" dateModified="2025-03-25T08:44:40.211Z">
+    <lexical-unit>kadaj6</lexical-unit>
+    <morph-type>stem</morph-type>
+    <sense id="s_48ec9290-988b-4b32-b536-3102766b86c3" order="1">
+      <grammatical-category>n</grammatical-category>
+      <gloss>rabbit</gloss>
+    </sense>
+  </entry>
+</lexicon>
