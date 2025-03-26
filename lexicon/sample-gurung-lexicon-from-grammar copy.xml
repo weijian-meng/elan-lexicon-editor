@@ -8,6 +8,9 @@
     <custom-fields>
       <field-spec name="Borrowed_from" level="entry"/>
       <field-spec name="Note_etymology" level="entry"/>
+      <field-spec name="Example" level="sense"/>
+      <field-spec name="Recording" level="entry"/>
+      <field-spec name="comments" level="entry"/>
     </custom-fields>
     <sort-order>apt apt apt</sort-order>
   </header>

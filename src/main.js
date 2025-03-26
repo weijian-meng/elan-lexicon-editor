@@ -100,7 +100,27 @@ ipcMain.handle('parse-xml', async (event, xmlString) => {
 
 ipcMain.handle('build-xml', async (event, data) => {
   try {
-    const builder = new Builder();
+    const builder = new Builder({
+      renderOpts: {
+        pretty: true,
+        indent: '  ',
+        newline: '\n'
+      },
+      headless: false,
+      rootName: 'lexicon',
+      xmldec: { 'version': '1.0', 'encoding': 'UTF-8' },
+      cdata: false,
+      // This is key - tells xml2js to always use two-part tags
+      emptyTag: (name, attrs) => {
+        let result = '<' + name;
+        for (let key in attrs) {
+          result += ' ' + key + '="' + attrs[key] + '"';
+        }
+        result += '></' + name + '>';
+        return result;
+      }
+    });
+    
     return builder.buildObject(data);
   } catch (error) {
     console.error('Error building XML:', error);

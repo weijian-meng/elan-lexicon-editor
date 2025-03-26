@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lexicon schemaVersion="1.0" producer="ELAN Lexicon Editor">
+  <header>
+    <name>javanese</name>
+    <language>javanese</language>
+    <description/>
+    <version>1.0</version>
+    <custom-fields>
+      <field-spec name="chinese" level="entry"/>
+      <field-spec name="english" level="entry"/>
+      <field-spec name="Loan_from" level="entry"></field-spec>
+    </custom-fields>
+  </header>
+</lexicon>
