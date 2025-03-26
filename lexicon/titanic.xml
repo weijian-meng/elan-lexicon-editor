@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lexicon schemaVersion="1.0" producer="ELAN Lexicon Editor">
+  <header>
+    <name>titanic</name>
+    <language>titanic</language>
+    <description/>
+    <version>1.0</version>
+    <custom-fields>
+      <field-spec name="new_field" level="entry"/>
+    </custom-fields>
+  </header>
+</lexicon>

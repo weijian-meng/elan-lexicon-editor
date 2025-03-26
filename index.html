@@ -65,11 +65,11 @@
         }
         .panel-content {
             flex: 1;
-            overflow: hidden;
             padding: 20px;
             position: relative;
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
         }
         .table-container {
             position: relative;
@@ -324,6 +324,43 @@
             background: #666;
         }
         .table-container::-webkit-scrollbar-corner {
+            background: #f1f1f1;
+        }
+        .custom-field-group {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid #1976d2;
+        }
+        .custom-field-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .panel-footer {
+            padding: 10px 20px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+        .panel-content::-webkit-scrollbar {
+            width: 10px;
+        }
+        .panel-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 0 4px 4px 0;
+        }
+        .panel-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+        .panel-content::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        .panel-content::-webkit-scrollbar-corner {
             background: #f1f1f1;
         }
     </style>
@@ -840,6 +877,14 @@
             selectedEntry['morph-type'] = [morphTypeInput.value];
             selectedEntry.$.dateModified = new Date().toISOString();
             
+            // Update custom entry fields
+            entryDetails.querySelectorAll('.custom-field-input:not([data-sense-index])').forEach(input => {
+                const fieldName = input.dataset.fieldName;
+                if (fieldName) {
+                    selectedEntry[fieldName] = [input.value];
+                }
+            });
+            
             // Update senses
             const senseElements = sensesContainer.querySelectorAll('.sense-section');
             senseElements.forEach((senseElement, index) => {
@@ -848,6 +893,14 @@
                 
                 selectedEntry.sense[index]['grammatical-category'] = [grammaticalCategoryInput.value];
                 selectedEntry.sense[index].gloss = [glossInput.value];
+                
+                // Update custom sense fields
+                senseElement.querySelectorAll('.custom-field-input[data-sense-index]').forEach(input => {
+                    const fieldName = input.dataset.fieldName;
+                    if (fieldName && input.dataset.senseIndex == index) {
+                        selectedEntry.sense[index][fieldName] = [input.value];
+                    }
+                });
             });
             
             isModified = true;
@@ -897,11 +950,15 @@
             selectedEntry = null;
             emptySelection.classList.remove('hidden');
             entryDetails.classList.add('hidden');
+            
+            // Remove any custom field elements
+            const customFieldGroups = entryDetails.querySelectorAll('.custom-field-group');
+            customFieldGroups.forEach(group => group.remove());
         }
         
         function renderEntryForm() {
             if (!selectedEntry) {
-                emptySelection.classList.remove('hidden');
+                emptySelection.classList.add('hidden');
                 entryDetails.classList.add('hidden');
                 return;
             }
@@ -909,6 +966,7 @@
             emptySelection.classList.add('hidden');
             entryDetails.classList.remove('hidden');
             
+            // Standard fields
             lexicalUnitInput.value = selectedEntry['lexical-unit']?.[0] || '';
             morphTypeInput.value = selectedEntry['morph-type']?.[0] || '';
             entryIdInput.value = selectedEntry.$.id || '';
@@ -918,6 +976,9 @@
             // Update inputs on change
             lexicalUnitInput.onchange = updateEntry;
             morphTypeInput.onchange = updateEntry;
+            
+            // Render custom entry-level fields
+            renderCustomEntryFields();
             
             // Render senses
             sensesContainer.innerHTML = '';
@@ -979,8 +1040,465 @@
                 senseSection.appendChild(grammaticalCategoryGroup);
                 senseSection.appendChild(glossGroup);
                 
+                // Render custom sense-level fields
+                renderCustomSenseFields(sense, senseSection, index);
+                
                 sensesContainer.appendChild(senseSection);
             });
+        }
+        
+        // In renderCustomEntryFields function, fix the handling of standard fields
+        function renderCustomEntryFields() {
+            if (!lexicon || !lexicon.header || !selectedEntry) return;
+            
+            // Get the custom fields from the lexicon header
+            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
+            if (!header['custom-fields'] || !header['custom-fields'][0]) return;
+            
+            const customFieldsContainer = header['custom-fields'][0];
+            let customFields = [];
+            
+            // Get all entry-level custom fields
+            if (Array.isArray(customFieldsContainer['field-spec'])) {
+                customFields = customFieldsContainer['field-spec'].filter(field => 
+                    field && field.$ && field.$.level === 'entry'
+                );
+            } else if (customFieldsContainer['field-spec'] && 
+                       customFieldsContainer['field-spec'].$ && 
+                       customFieldsContainer['field-spec'].$.level === 'entry') {
+                customFields = [customFieldsContainer['field-spec']];
+            }
+            
+            // Create input fields for each custom field
+            customFields.forEach(field => {
+                if (!field || !field.$) return;
+                
+                const fieldName = field.$.name;
+                if (!fieldName) return;
+                
+                // Check if the custom field already exists in the form
+                const existingField = entryDetails.querySelector(`#custom_${fieldName}`);
+                if (existingField) return;  // Skip if already rendered
+                
+                // Create form group for the custom field
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group custom-field-group';
+                formGroup.dataset.fieldName = fieldName;
+                
+                const label = document.createElement('label');
+                label.textContent = fieldName.replace(/_/g, ' ');  // Format for display
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `custom_${fieldName}`;
+                input.className = 'custom-field-input';
+                input.dataset.fieldName = fieldName;
+                
+                // Set value from entry if it exists
+                // First check for standard field format (direct property)
+                if (selectedEntry[fieldName] && selectedEntry[fieldName].length > 0) {
+                    input.value = selectedEntry[fieldName][0];
+                } 
+                // Then check for field@name format
+                else {
+                    const fieldElements = selectedEntry.field || [];
+                    const matchingField = Array.isArray(fieldElements) ? 
+                        fieldElements.find(f => f && f.$ && f.$.name === fieldName) : 
+                        (fieldElements.$ && fieldElements.$.name === fieldName ? fieldElements : null);
+                    
+                    if (matchingField) {
+                        input.value = matchingField._ || '';
+                        console.log(`Found field@name ${fieldName} with value: ${input.value}`);
+                    }
+                }
+                
+                // Add change handler
+                input.onchange = () => {
+                    // For custom fields with field@name format
+                    if (!selectedEntry[fieldName]) {
+                        if (!selectedEntry.field) {
+                            selectedEntry.field = [];
+                        }
+                        
+                        // See if there's an existing field with this name
+                        let existingFieldIndex = -1;
+                        if (Array.isArray(selectedEntry.field)) {
+                            existingFieldIndex = selectedEntry.field.findIndex(f => f && f.$ && f.$.name === fieldName);
+                        }
+                        
+                        if (existingFieldIndex >= 0) {
+                            // Update existing field
+                            selectedEntry.field[existingFieldIndex]._ = input.value;
+                        } else {
+                            // Add new field
+                            selectedEntry.field.push({
+                                $: { name: fieldName },
+                                _: input.value
+                            });
+                        }
+                    } else {
+                        // For standard custom fields
+                        selectedEntry[fieldName] = [input.value];
+                    }
+                    
+                    selectedEntry.$.dateModified = new Date().toISOString();
+                    isModified = true;
+                    entryHasChanges = true;
+                    updateFileName();
+                    updateEntryStatus();
+                };
+                
+                formGroup.appendChild(label);
+                formGroup.appendChild(input);
+                
+                // Insert at the appropriate location
+                const sensesContainer = document.getElementById('sensesContainer');
+                const addSenseBtn = document.getElementById('addSenseBtn');
+                if (addSenseBtn) {
+                    entryDetails.insertBefore(formGroup, addSenseBtn);
+                } else if (sensesContainer) {
+                    entryDetails.insertBefore(formGroup, sensesContainer.nextSibling);
+                } else {
+                    const idField = document.getElementById('entryId');
+                    if (idField && idField.closest('.form-group')) {
+                        entryDetails.insertBefore(formGroup, idField.closest('.form-group'));
+                    } else {
+                        entryDetails.appendChild(formGroup);
+                    }
+                }
+            });
+            
+            // Add any fields that exist in the entry but not in the header definition
+            // Handle both direct properties and field@name format
+            const standardFields = ['$', 'lexical-unit', 'morph-type', 'sense'];
+            
+            // First check direct properties
+            Object.keys(selectedEntry).forEach(key => {
+                // Skip standard fields and attributes
+                if (standardFields.includes(key)) return;
+                
+                // Check if the field is already rendered
+                const existingField = entryDetails.querySelector(`#custom_${key}`);
+                if (existingField) return;
+                
+                // Check if it's in the custom fields definition
+                const isDefinedField = customFields.some(field => field.$.name === key);
+                if (isDefinedField) return; // Skip if it's already handled
+                
+                // Skip 'field' property since we'll handle it separately
+                if (key === 'field') return;
+                
+                // Create form group for the property
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group custom-field-group';
+                formGroup.dataset.fieldName = key;
+                
+                const label = document.createElement('label');
+                // We know this is a standard schema field, not undeclared
+                label.textContent = key.replace(/_/g, ' ');
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `custom_${key}`;
+                input.className = 'custom-field-input';
+                input.dataset.fieldName = key;
+                
+                // Set value from entry
+                input.value = selectedEntry[key] && selectedEntry[key].length > 0 ? selectedEntry[key][0] : '';
+                
+                input.onchange = () => {
+                    selectedEntry[key] = [input.value];
+                    selectedEntry.$.dateModified = new Date().toISOString();
+                    isModified = true;
+                    entryHasChanges = true;
+                    updateFileName();
+                    updateEntryStatus();
+                };
+                
+                formGroup.appendChild(label);
+                formGroup.appendChild(input);
+                
+                // Insert at the appropriate location
+                const sensesContainer = document.getElementById('sensesContainer');
+                const addSenseBtn = document.getElementById('addSenseBtn');
+                if (addSenseBtn) {
+                    entryDetails.insertBefore(formGroup, addSenseBtn);
+                } else if (sensesContainer) {
+                    entryDetails.insertBefore(formGroup, sensesContainer.nextSibling);
+                } else {
+                    const idField = document.getElementById('entryId');
+                    if (idField && idField.closest('.form-group')) {
+                        entryDetails.insertBefore(formGroup, idField.closest('.form-group'));
+                    } else {
+                        entryDetails.appendChild(formGroup);
+                    }
+                }
+            });
+            
+            // Then check field@name format fields
+            if (selectedEntry.field) {
+                const fieldElements = Array.isArray(selectedEntry.field) ? selectedEntry.field : [selectedEntry.field];
+                
+                fieldElements.forEach(field => {
+                    if (!field || !field.$ || !field.$.name) return;
+                    
+                    const fieldName = field.$.name;
+                    
+                    // Check if the field is already rendered
+                    const existingField = entryDetails.querySelector(`#custom_${fieldName}`);
+                    if (existingField) return;
+                    
+                    // Check if it's in the custom fields definition
+                    const isDefinedField = customFields.some(f => f.$.name === fieldName);
+                    if (isDefinedField) return; // Skip if it's already handled
+                    
+                    // Create form group for the field
+                    const formGroup = document.createElement('div');
+                    formGroup.className = 'form-group custom-field-group';
+                    formGroup.dataset.fieldName = fieldName;
+                    
+                    const label = document.createElement('label');
+                    label.textContent = fieldName.replace(/_/g, ' ');
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = `custom_${fieldName}`;
+                    input.className = 'custom-field-input';
+                    input.dataset.fieldName = fieldName;
+                    
+                    // Set value from field
+                    input.value = field._ || '';
+                    
+                    input.onchange = () => {
+                        field._ = input.value;
+                        selectedEntry.$.dateModified = new Date().toISOString();
+                        isModified = true;
+                        entryHasChanges = true;
+                        updateFileName();
+                        updateEntryStatus();
+                    };
+                    
+                    formGroup.appendChild(label);
+                    formGroup.appendChild(input);
+                    
+                    // Insert at the appropriate location
+                    const sensesContainer = document.getElementById('sensesContainer');
+                    const addSenseBtn = document.getElementById('addSenseBtn');
+                    if (addSenseBtn) {
+                        entryDetails.insertBefore(formGroup, addSenseBtn);
+                    } else if (sensesContainer) {
+                        entryDetails.insertBefore(formGroup, sensesContainer.nextSibling);
+                    } else {
+                        const idField = document.getElementById('entryId');
+                        if (idField && idField.closest('.form-group')) {
+                            entryDetails.insertBefore(formGroup, idField.closest('.form-group'));
+                        } else {
+                            entryDetails.appendChild(formGroup);
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Update renderCustomSenseFields to handle both standard fields and field@name format
+        function renderCustomSenseFields(sense, senseSection, senseIndex) {
+            if (!lexicon || !lexicon.header) return;
+            
+            // Get the custom fields from the lexicon header
+            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
+            if (!header['custom-fields'] || !header['custom-fields'][0]) return;
+            
+            const customFieldsContainer = header['custom-fields'][0];
+            let customFields = [];
+            
+            // Get all sense-level custom fields
+            if (Array.isArray(customFieldsContainer['field-spec'])) {
+                customFields = customFieldsContainer['field-spec'].filter(field => 
+                    field && field.$ && field.$.level === 'sense'
+                );
+            } else if (customFieldsContainer['field-spec'] && 
+                       customFieldsContainer['field-spec'].$ && 
+                       customFieldsContainer['field-spec'].$.level === 'sense') {
+                customFields = [customFieldsContainer['field-spec']];
+            }
+            
+            // Create input fields for each custom field
+            customFields.forEach(field => {
+                if (!field || !field.$) return;
+                
+                const fieldName = field.$.name;
+                if (!fieldName) return;
+                
+                // Create form group for the custom field
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group custom-field-group';
+                formGroup.dataset.fieldName = fieldName;
+                
+                const label = document.createElement('label');
+                label.textContent = fieldName.replace(/_/g, ' ');  // Format for display
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'custom-field-input';
+                input.dataset.fieldName = fieldName;
+                input.dataset.senseIndex = senseIndex;
+                
+                // Set value from sense if it exists
+                // First check for standard field format
+                if (sense[fieldName] && sense[fieldName].length > 0) {
+                    input.value = sense[fieldName][0];
+                } 
+                // Then check for field@name format
+                else {
+                    const fieldElements = sense.field || [];
+                    const matchingField = Array.isArray(fieldElements) ? 
+                        fieldElements.find(f => f && f.$ && f.$.name === fieldName) : 
+                        (fieldElements.$ && fieldElements.$.name === fieldName ? fieldElements : null);
+                    
+                    if (matchingField) {
+                        input.value = matchingField._ || '';
+                    }
+                }
+                
+                // Add change handler
+                input.onchange = () => {
+                    // For custom fields with field@name format
+                    if (!sense[fieldName]) {
+                        if (!sense.field) {
+                            sense.field = [];
+                        }
+                        
+                        // See if there's an existing field with this name
+                        let existingFieldIndex = -1;
+                        if (Array.isArray(sense.field)) {
+                            existingFieldIndex = sense.field.findIndex(f => f && f.$ && f.$.name === fieldName);
+                        }
+                        
+                        if (existingFieldIndex >= 0) {
+                            // Update existing field
+                            sense.field[existingFieldIndex]._ = input.value;
+                        } else {
+                            // Add new field
+                            sense.field.push({
+                                $: { name: fieldName },
+                                _: input.value
+                            });
+                        }
+                    } else {
+                        // For standard custom fields
+                        sense[fieldName] = [input.value];
+                    }
+                    
+                    selectedEntry.$.dateModified = new Date().toISOString();
+                    isModified = true;
+                    entryHasChanges = true;
+                    updateFileName();
+                    updateEntryStatus();
+                };
+                
+                formGroup.appendChild(label);
+                formGroup.appendChild(input);
+                
+                // Add to the sense section
+                senseSection.appendChild(formGroup);
+            });
+            
+            // Add any fields that exist in the sense but not in the header definition
+            // Standard sense fields to skip
+            const standardFields = ['$', 'grammatical-category', 'gloss'];
+            
+            // First check direct properties
+            Object.keys(sense).forEach(key => {
+                // Skip standard fields and attributes
+                if (standardFields.includes(key)) return;
+                
+                // Skip 'field' property since we'll handle it separately
+                if (key === 'field') return;
+                
+                // Check if it's in the custom fields definition
+                const isDefinedField = customFields.some(field => field.$.name === key);
+                if (isDefinedField) return; // Skip if it's already handled
+                
+                // Create form group for the standard field
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group custom-field-group';
+                formGroup.dataset.fieldName = key;
+                
+                const label = document.createElement('label');
+                // We know this is a standard schema field, not undeclared
+                label.textContent = key.replace(/_/g, ' ');
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'custom-field-input';
+                input.dataset.fieldName = key;
+                input.dataset.senseIndex = senseIndex;
+                
+                // Set value from sense
+                input.value = sense[key] && sense[key].length > 0 ? sense[key][0] : '';
+                
+                input.onchange = () => {
+                    sense[key] = [input.value];
+                    selectedEntry.$.dateModified = new Date().toISOString();
+                    isModified = true;
+                    entryHasChanges = true;
+                    updateFileName();
+                    updateEntryStatus();
+                };
+                
+                formGroup.appendChild(label);
+                formGroup.appendChild(input);
+                
+                // Add to the sense section
+                senseSection.appendChild(formGroup);
+            });
+            
+            // Then check field@name format fields
+            if (sense.field) {
+                const fieldElements = Array.isArray(sense.field) ? sense.field : [sense.field];
+                
+                fieldElements.forEach(field => {
+                    if (!field || !field.$ || !field.$.name) return;
+                    
+                    const fieldName = field.$.name;
+                    
+                    // Check if it's in the custom fields definition
+                    const isDefinedField = customFields.some(f => f.$.name === fieldName);
+                    if (isDefinedField) return; // Skip if it's already handled
+                    
+                    // Create form group for the field
+                    const formGroup = document.createElement('div');
+                    formGroup.className = 'form-group custom-field-group';
+                    formGroup.dataset.fieldName = fieldName;
+                    
+                    const label = document.createElement('label');
+                    label.textContent = fieldName.replace(/_/g, ' ');
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'custom-field-input';
+                    input.dataset.fieldName = fieldName;
+                    input.dataset.senseIndex = senseIndex;
+                    
+                    // Set value from field
+                    input.value = field._ || '';
+                    
+                    input.onchange = () => {
+                        field._ = input.value;
+                        selectedEntry.$.dateModified = new Date().toISOString();
+                        isModified = true;
+                        entryHasChanges = true;
+                        updateFileName();
+                        updateEntryStatus();
+                    };
+                    
+                    formGroup.appendChild(label);
+                    formGroup.appendChild(input);
+                    
+                    // Add to the sense section
+                    senseSection.appendChild(formGroup);
+                });
+            }
         }
         
         function updateFileName() {
