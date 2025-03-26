@@ -65,39 +65,77 @@
         }
         .panel-content {
             flex: 1;
-            overflow: auto;
+            overflow: hidden;
             padding: 20px;
-        }
-        .panel-footer {
-            padding: 10px 20px;
-            background-color: #f5f5f5;
-            border-top: 1px solid #ddd;
+            position: relative;
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+        }
+        .table-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .table-header {
+            background-color: #f1f1f1;
+            border-bottom: 1px solid #ddd;
+            width: 100%;
+            z-index: 10;
+        }
+        .table-body-container {
+            flex: 1;
+            overflow: auto;
+            width: 100%;
         }
         .lexicon-table {
             width: 100%;
-            border-collapse: collapse;
-        }
-        .lexicon-table th, .lexicon-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .lexicon-table tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        .lexicon-table tr.selected {
-            background-color: #e3f2fd;
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: fixed;
         }
         .lexicon-table th {
-            padding-top: 12px;
-            padding-bottom: 12px;
+            padding: 12px 8px;
             background-color: #f1f1f1;
             color: black;
-            position: sticky;
-            top: 0;
-            z-index: 1;
+            font-weight: bold;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+            border-right: 1px solid #ddd;
+        }
+        .lexicon-table td {
+            border-bottom: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            background-color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+        }
+        .lexicon-table .col-lexical-unit { width: 25%; }
+        .lexicon-table .col-morph-type { width: 20%; }
+        .lexicon-table .col-grammatical-category { width: 25%; }
+        .lexicon-table .col-gloss { width: 30%; }
+        .lexicon-table th:last-child, 
+        .lexicon-table td:last-child {
+            border-right: none;
+        }
+        .lexicon-table tr:last-child td {
+            border-bottom: none;
+        }
+        .lexicon-table tr:nth-child(even) td {
+            background-color: #f2f2f2;
+        }
+        .lexicon-table tr.selected td {
+            background-color: #e3f2fd;
         }
         .button {
             background-color: #1976d2;
@@ -270,13 +308,31 @@
             margin-top: 10px;
             font-family: monospace;
         }
+        .table-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 0 4px 4px 0;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        .table-container::-webkit-scrollbar-corner {
+            background: #f1f1f1;
+        }
     </style>
 </head>
 <body>
     <div id="app">
         <div class="toolbar">
             <h1>
-                Lexicon Editor
+                <!-- Lexicon Editor -->
                 <span class="file-name" id="fileName">No file open</span>
             </h1>
             <div class="toolbar-actions">
@@ -289,24 +345,32 @@
         <div class="main-content">
             <div class="panel">
                 <div class="panel-content">
-                    <table class="lexicon-table" id="lexiconTable">
-                        <thead>
-                            <tr>
-                                <th>Lexical Unit</th>
-                                <th>Morph Type</th>
-                                <th>Grammatical Category</th>
-                                <th>Gloss</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lexiconTableBody">
-                            <!-- Entries will be added here -->
-                        </tbody>
-                    </table>
+                    <div class="table-container">
+                        <div class="table-header">
+                            <table class="lexicon-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-lexical-unit">Lexical Unit</th>
+                                        <th class="col-morph-type">Morph Type</th>
+                                        <th class="col-grammatical-category">Grammatical Category</th>
+                                        <th class="col-gloss">Gloss</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="table-body-container">
+                            <table class="lexicon-table">
+                                <tbody id="lexiconTableBody">
+                                    <!-- Entries will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
                 <div class="panel-footer">
                     <button class="button" id="addEntryBtn">Add Entry</button>
                     <button class="button danger" id="removeEntryBtn">Remove Entry</button>
-                    <button class="button" id="configBtn">Config</button>
+                    <button class="button" id="configBtn">Configure</button>
                 </div>
             </div>
             
@@ -551,10 +615,71 @@
             }
             
             if (currentFile && lexicon) {
-                const xmlString = await ipcRenderer.invoke('build-xml', { lexicon });
+                // Deep clone the lexicon to avoid modifying the original
+                const lexiconToSave = JSON.parse(JSON.stringify(lexicon));
+                
+                // Fix custom fields to use two-part syntax
+                ensureTwoPartSyntaxForCustomFields(lexiconToSave);
+                
+                const xmlString = await ipcRenderer.invoke('build-xml', { lexicon: lexiconToSave });
                 await ipcRenderer.invoke('save-file', { filePath: currentFile, content: xmlString });
                 isModified = false;
                 updateFileName();
+            }
+        }
+        
+        // Add this new function to ensure custom fields use two-part syntax
+        function ensureTwoPartSyntaxForCustomFields(lexiconObj) {
+            if (!lexiconObj || !lexiconObj.header) return;
+            
+            // Process each header element (usually just one)
+            if (Array.isArray(lexiconObj.header)) {
+                lexiconObj.header.forEach(header => {
+                    if (header['custom-fields'] && Array.isArray(header['custom-fields'])) {
+                        header['custom-fields'].forEach(customFields => {
+                            if (customFields['field-spec']) {
+                                // Handle array of field specs
+                                if (Array.isArray(customFields['field-spec'])) {
+                                    customFields['field-spec'] = customFields['field-spec'].map(spec => {
+                                        if (spec && spec.$ && !spec._) {
+                                            // Add empty content to force two-part syntax
+                                            spec._ = '';
+                                        }
+                                        return spec;
+                                    });
+                                } 
+                                // Handle single field spec
+                                else if (customFields['field-spec'].$ && !customFields['field-spec']._) {
+                                    customFields['field-spec']._ = '';
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            // Handle non-array header (unlikely but possible)
+            else if (lexiconObj.header['custom-fields']) {
+                const header = lexiconObj.header;
+                if (Array.isArray(header['custom-fields'])) {
+                    header['custom-fields'].forEach(customFields => {
+                        if (customFields['field-spec']) {
+                            // Handle array of field specs
+                            if (Array.isArray(customFields['field-spec'])) {
+                                customFields['field-spec'] = customFields['field-spec'].map(spec => {
+                                    if (spec && spec.$ && !spec._) {
+                                        // Add empty content to force two-part syntax
+                                        spec._ = '';
+                                    }
+                                    return spec;
+                                });
+                            } 
+                            // Handle single field spec
+                            else if (customFields['field-spec'].$ && !customFields['field-spec']._) {
+                                customFields['field-spec']._ = '';
+                            }
+                        }
+                    });
+                }
             }
         }
         
@@ -578,7 +703,9 @@
                     description: [''],
                     author: [],
                     version: ['1.0'],
-                    'custom-fields': [{}],
+                    'custom-fields': [{
+                        'field-spec': []
+                    }],
                     'field-configs': [],
                     'sort-order': []
                 }],
@@ -740,15 +867,19 @@
                 row.dataset.entryId = entry.$.id;
                 
                 const lexicalUnitCell = document.createElement('td');
+                lexicalUnitCell.className = 'col-lexical-unit';
                 lexicalUnitCell.textContent = entry['lexical-unit']?.[0] || '';
                 
                 const morphTypeCell = document.createElement('td');
+                morphTypeCell.className = 'col-morph-type';
                 morphTypeCell.textContent = entry['morph-type']?.[0] || '';
                 
                 const grammaticalCategoryCell = document.createElement('td');
+                grammaticalCategoryCell.className = 'col-grammatical-category';
                 grammaticalCategoryCell.textContent = entry.sense?.[0]?.['grammatical-category']?.[0] || '';
                 
                 const glossCell = document.createElement('td');
+                glossCell.className = 'col-gloss';
                 glossCell.textContent = entry.sense?.[0]?.gloss?.[0] || '';
                 
                 row.appendChild(lexicalUnitCell);
@@ -1070,38 +1201,44 @@
             if (versionInput.value) header.version = [versionInput.value];
             if (sortOrderInput.value) header['sort-order'] = [sortOrderInput.value];
             
-            // Prepare custom fields in the correct format for XML
+            // Get new field specs from the UI
             const fieldSpecs = [];
             customFieldsList.querySelectorAll('.custom-field').forEach(fieldElement => {
                 const nameInput = fieldElement.querySelector('input');
                 const levelSelect = fieldElement.querySelector('select');
                 
-                // Sanitize the field name to ensure XML compatibility
-                // Replace invalid characters with underscores
                 let fieldName = nameInput.value;
                 fieldName = fieldName.replace(/[^a-zA-Z0-9_]/g, '_');
                 
                 if (fieldName) {
+                    // Add an empty text node to ensure two-part syntax
                     fieldSpecs.push({
                         $: {
                             name: fieldName,
                             level: levelSelect.value
-                        }
+                        },
+                        _: '' // Add empty content to force two-part syntax
                     });
                 }
             });
             
-            // Only update custom fields if there are any
-            if (fieldSpecs.length > 0) {
-                // Ensure the header has a custom-fields array
-                if (!header['custom-fields']) {
-                    header['custom-fields'] = [{}];
-                }
-                // Update or create the field-spec array inside custom-fields
-                header['custom-fields'][0]['field-spec'] = fieldSpecs;
+            // Initialize or update custom fields
+            if (!header['custom-fields']) {
+                header['custom-fields'] = [{}];
             }
             
-            console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2)); // Debug updated header
+            if (!header['custom-fields'][0]) {
+                header['custom-fields'][0] = {};
+            }
+            
+            // Replace the field-spec array with our new field specs
+            if (fieldSpecs.length > 0) {
+                header['custom-fields'][0]['field-spec'] = fieldSpecs;
+            } else {
+                header['custom-fields'][0]['field-spec'] = [];
+            }
+            
+            console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2));
             
             isModified = true;
             updateFileName();
