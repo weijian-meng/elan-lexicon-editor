@@ -53,15 +53,44 @@
             gap: 20px;
             background-color: #f5f5f5;
             overflow: hidden;
+            position: relative;
         }
         .panel {
-            flex: 1;
             background-color: white;
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-width: 300px; /* Minimum width for each panel */
+            width: 50%; /* Initial width */
+        }
+        .panel-resizer {
+            width: 8px;
+            background-color: #f5f5f5;
+            cursor: col-resize;
+            position: relative;
+            margin: 0 -4px; /* Extend the hit area */
+            z-index: 10;
+        }
+        .panel-resizer::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #ddd;
+            transform: translateX(-50%);
+        }
+        .panel-resizer:hover::before {
+            background-color: #1976d2;
+        }
+        .panel-resizer.dragging::before {
+            background-color: #1976d2;
+        }
+        .panel-resizer.dragging {
+            cursor: col-resize;
         }
         .panel-content {
             flex: 1;
@@ -120,10 +149,11 @@
             text-overflow: ellipsis;
             box-sizing: border-box;
         }
-        .lexicon-table .col-lexical-unit { width: 25%; }
+        .lexicon-table .col-lexical-unit { width: 15%; }
+        .lexicon-table .col-variants { width: 15%; }
         .lexicon-table .col-morph-type { width: 20%; }
         .lexicon-table .col-grammatical-category { width: 25%; }
-        .lexicon-table .col-gloss { width: 30%; }
+        .lexicon-table .col-gloss { width: 25%; }
         .lexicon-table th:last-child, 
         .lexicon-table td:last-child {
             border-right: none;
@@ -388,6 +418,7 @@
                                 <thead>
                                     <tr>
                                         <th class="col-lexical-unit">Lexical Unit</th>
+                                        <th class="col-variants">Variants</th>
                                         <th class="col-morph-type">Morph Type</th>
                                         <th class="col-grammatical-category">Grammatical Category</th>
                                         <th class="col-gloss">Gloss</th>
@@ -411,6 +442,8 @@
                 </div>
             </div>
             
+            <div class="panel-resizer" id="panelResizer"></div>
+            
             <div class="panel">
                 <div class="panel-content">
                     <div class="entry-form" id="entryForm">
@@ -432,6 +465,14 @@
                             <div class="form-group">
                                 <label for="morphType">Morph Type</label>
                                 <input type="text" id="morphType" />
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Variants</label>
+                                <div id="variantsContainer">
+                                    <!-- Variants will be added here -->
+                                </div>
+                                <button class="button" id="addVariantBtn">Add Variant</button>
                             </div>
                             
                             <div id="sensesContainer">
@@ -616,6 +657,81 @@
             });
         });
         
+        // Panel resizing functionality
+        const panelResizer = document.getElementById('panelResizer');
+        let isResizing = false;
+        let startX;
+        let startWidth;
+        let leftPanel;
+        let rightPanel;
+        
+        panelResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.pageX;
+            
+            leftPanel = panelResizer.previousElementSibling;
+            rightPanel = panelResizer.nextElementSibling;
+            
+            startWidth = leftPanel.offsetWidth;
+            
+            panelResizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            
+            // Add event listeners for mouse move and up
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        });
+        
+        function handleMouseMove(e) {
+            if (!isResizing) return;
+            
+            const width = startWidth + (e.pageX - startX);
+            const containerWidth = leftPanel.parentElement.offsetWidth;
+            
+            // Calculate minimum widths (300px each)
+            const minWidth = 300;
+            const maxWidth = containerWidth - minWidth;
+            
+            // Constrain the width between min and max values
+            const constrainedWidth = Math.min(Math.max(width, minWidth), maxWidth);
+            
+            // Update panel widths
+            leftPanel.style.width = `${constrainedWidth}px`;
+            rightPanel.style.width = `${containerWidth - constrainedWidth - 8}px`; // Subtract resizer width
+        }
+        
+        function handleMouseUp() {
+            isResizing = false;
+            panelResizer.classList.remove('dragging');
+            document.body.style.cursor = '';
+            
+            // Remove event listeners
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+        
+        // Initialize panel widths
+        function initializePanelWidths() {
+            const containerWidth = document.querySelector('.main-content').offsetWidth;
+            const leftPanel = document.querySelector('.panel');
+            const rightPanel = document.querySelector('.panel:last-child');
+            
+            // Set initial widths (50% each, accounting for resizer)
+            const panelWidth = (containerWidth - 8) / 2; // Subtract resizer width
+            leftPanel.style.width = `${panelWidth}px`;
+            rightPanel.style.width = `${panelWidth}px`;
+        }
+        
+        // Call initializePanelWidths when the window loads
+        window.addEventListener('load', initializePanelWidths);
+        
+        // Update panel widths when the window is resized
+        window.addEventListener('resize', () => {
+            if (!isResizing) {
+                initializePanelWidths();
+            }
+        });
+        
         // Functions
         function showNewLexiconDialog() {
             newLexiconDialog.classList.remove('hidden');
@@ -771,6 +887,7 @@
                 },
                 'lexical-unit': [''],
                 'morph-type': [''],
+                variant: [],
                 sense: [{
                     $: {
                         id: `s_${uuidv4()}`,
@@ -812,6 +929,36 @@
             
             selectedEntry.sense.push(newSense);
             renderEntryForm();
+        }
+        
+        function handleAddVariant() {
+            if (!selectedEntry) return;
+            
+            if (!selectedEntry.variant) {
+                selectedEntry.variant = [];
+            }
+            
+            selectedEntry.variant.push('');
+            renderEntryForm();
+        }
+        
+        function handleRemoveVariant(index) {
+            if (!selectedEntry || !selectedEntry.variant) return;
+            
+            selectedEntry.variant.splice(index, 1);
+            renderEntryForm();
+            updateEntry();
+        }
+        
+        function handleVariantChange(index, value) {
+            if (!selectedEntry) return;
+            
+            if (!selectedEntry.variant) {
+                selectedEntry.variant = [];
+            }
+            
+            selectedEntry.variant[index] = value;
+            updateEntry();
         }
         
         function handleDiscardChanges() {
@@ -923,6 +1070,12 @@
                 lexicalUnitCell.className = 'col-lexical-unit';
                 lexicalUnitCell.textContent = entry['lexical-unit']?.[0] || '';
                 
+                const variantsCell = document.createElement('td');
+                variantsCell.className = 'col-variants';
+                if (entry.variant && entry.variant.length > 0) {
+                    variantsCell.textContent = entry.variant.join('; ');
+                }
+                
                 const morphTypeCell = document.createElement('td');
                 morphTypeCell.className = 'col-morph-type';
                 morphTypeCell.textContent = entry['morph-type']?.[0] || '';
@@ -936,6 +1089,7 @@
                 glossCell.textContent = entry.sense?.[0]?.gloss?.[0] || '';
                 
                 row.appendChild(lexicalUnitCell);
+                row.appendChild(variantsCell);
                 row.appendChild(morphTypeCell);
                 row.appendChild(grammaticalCategoryCell);
                 row.appendChild(glossCell);
@@ -977,6 +1131,40 @@
             lexicalUnitInput.onchange = updateEntry;
             morphTypeInput.onchange = updateEntry;
             
+            // Render variants
+            const variantsContainer = document.getElementById('variantsContainer');
+            variantsContainer.innerHTML = '';
+            
+            if (selectedEntry.variant) {
+                selectedEntry.variant.forEach((variant, index) => {
+                    const variantGroup = document.createElement('div');
+                    variantGroup.className = 'variant-group';
+                    variantGroup.style.display = 'flex';
+                    variantGroup.style.gap = '10px';
+                    variantGroup.style.marginBottom = '10px';
+                    
+                    const variantInput = document.createElement('input');
+                    variantInput.type = 'text';
+                    variantInput.value = variant;
+                    variantInput.className = 'variant-input';
+                    variantInput.style.flex = '1';
+                    variantInput.onchange = (e) => handleVariantChange(index, e.target.value);
+                    
+                    const removeButton = document.createElement('button');
+                    removeButton.textContent = 'Remove';
+                    removeButton.className = 'button danger';
+                    removeButton.onclick = () => handleRemoveVariant(index);
+                    
+                    variantGroup.appendChild(variantInput);
+                    variantGroup.appendChild(removeButton);
+                    variantsContainer.appendChild(variantGroup);
+                });
+            }
+            
+            // Add variant button
+            const addVariantBtn = document.getElementById('addVariantBtn');
+            addVariantBtn.onclick = handleAddVariant;
+            
             // Render custom entry-level fields
             renderCustomEntryFields();
             
@@ -1005,6 +1193,20 @@
                 
                 senseHeader.appendChild(senseTitle);
                 senseHeader.appendChild(removeButton);
+                
+                const senseIdGroup = document.createElement('div');
+                senseIdGroup.className = 'form-group';
+                
+                const senseIdLabel = document.createElement('label');
+                senseIdLabel.textContent = 'ID';
+                
+                const senseIdInput = document.createElement('input');
+                senseIdInput.type = 'text';
+                senseIdInput.value = sense.$.id || '';
+                senseIdInput.disabled = true;
+                
+                senseIdGroup.appendChild(senseIdLabel);
+                senseIdGroup.appendChild(senseIdInput);
                 
                 const grammaticalCategoryGroup = document.createElement('div');
                 grammaticalCategoryGroup.className = 'form-group';
@@ -1037,6 +1239,7 @@
                 glossGroup.appendChild(glossInput);
                 
                 senseSection.appendChild(senseHeader);
+                senseSection.appendChild(senseIdGroup);
                 senseSection.appendChild(grammaticalCategoryGroup);
                 senseSection.appendChild(glossGroup);
                 
@@ -1170,7 +1373,7 @@
             
             // Add any fields that exist in the entry but not in the header definition
             // Handle both direct properties and field@name format
-            const standardFields = ['$', 'lexical-unit', 'morph-type', 'sense'];
+            const standardFields = ['$', 'lexical-unit', 'morph-type', 'sense', 'variant'];
             
             // First check direct properties
             Object.keys(selectedEntry).forEach(key => {
@@ -1610,7 +1813,6 @@
             
             const icon = document.createElement('span');
             icon.className = 'tree-item-icon';
-            icon.textContent = '▶';
             icon.onclick = () => {
                 const children = div.querySelector('.tree-item-children');
                 if (children) {
