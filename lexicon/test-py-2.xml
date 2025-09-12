@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lexicon schemaVersion="1.0" producer="ELAN Lexicon Editor" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mpi.nl/tools/elan/LexiconComponent-1.0.xsd">
+	<header>
+		<name>test</name>
+		<language>en</language>
+		<description></description>
+		<version>1.0</version>
+		<custom-fields></custom-fields>
+	</header>
+	<entry id="e_63b26fa2-9850-4ba2-be0a-336f4d6537d6" dateCreated="2025-09-12T21:48:42.925Z" dateModified="2025-09-12T21:48:56.835Z">
+		<lexical-unit>apple</lexical-unit>
+		<morph-type>stem</morph-type>
+		<sense id="s_2cc3bb05-1c13-407e-9770-f6c5cd77ca5b" order="1">
+			<grammatical-category>n</grammatical-category>
+			<gloss>apple</gloss>
+		</sense>
+	</entry>
+</lexicon>

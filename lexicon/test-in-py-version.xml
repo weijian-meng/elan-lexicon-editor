@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lexicon ="{'schemaVersion': '1.0', 'producer': 'ELAN Lexicon Editor'}">
+	<header>
+		<name>test</name>
+		<language>en</language>
+		<description></description>
+		<version>1.0</version>
+		<custom-fields></custom-fields>
+	</header>
+	<entry ="{'id': 'e_ea0ed331-9be0-4675-a195-afd5938b5f7e', 'dateCreated': '2025-09-12T21:38:35.182Z', 'dateModified': '2025-09-12T21:38:54.172Z'}">
+		<lexical-unit>apple</lexical-unit>
+		<morph-type>stem</morph-type>
+		<sense ="{'id': 's_57ac4c0d-f564-425a-8d9e-a2a9fa79c0a9', 'order': '1'}">
+			<grammatical-category>n</grammatical-category>
+			<gloss>apple</gloss>
+		</sense>
+	</entry>
+</lexicon>
