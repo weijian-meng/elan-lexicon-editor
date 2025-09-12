@@ -8,6 +8,18 @@ yarn-error.log
 dist/
 build/
 
+# Python caches and envs
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+*.spec
+
 # IDE and editor files
 .idea/
 .vscode/
