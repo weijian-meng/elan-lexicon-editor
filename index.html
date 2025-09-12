@@ -587,7 +587,6 @@
     </div>
     
     <script>
-        const pywebview = window.pywebview;
         const uuidv4 = () => window.crypto.randomUUID();
         
         // State
@@ -744,22 +743,37 @@
         }
         
         async function handleOpenFile() {
-            const result = await pywebview.api.open_file();
-            if (result) {
-                const { filePath, content } = result;
-                const parsedXml = await pywebview.api.parse_xml(content);
+            if (!(window.pywebview && window.pywebview.api)) {
+                alert('The native bridge is not ready yet. Please try again.');
+                return;
+            }
+            const result = await window.pywebview.api.open_file();
+            if (!result) return;
+            const { filePath, content } = result;
+            try {
+                const parsedXml = await window.pywebview.api.parse_xml(content);
+                if (!parsedXml || !parsedXml.lexicon) {
+                    throw new Error('Parsed XML has no lexicon root');
+                }
                 lexicon = parsedXml.lexicon;
                 currentFile = filePath;
                 isModified = false;
                 updateFileName();
                 renderLexiconTable();
                 clearEntryForm();
+            } catch (err) {
+                console.error('Open/parse failed:', err);
+                alert(`Failed to open file.\n${(err && err.message) || err}`);
             }
         }
 
         async function handleSaveFile() {
             if (!currentFile) {
-                const result = await pywebview.api.save_file_dialog();
+                if (!(window.pywebview && window.pywebview.api)) {
+                    alert('The native bridge is not ready yet. Please try again.');
+                    return;
+                }
+                const result = await window.pywebview.api.save_file_dialog();
                 if (result) {
                     currentFile = result;
                 } else {
@@ -774,8 +788,8 @@
                 // Fix custom fields to use two-part syntax
                 ensureTwoPartSyntaxForCustomFields(lexiconToSave);
 
-                const xmlString = await pywebview.api.build_xml({ lexicon: lexiconToSave });
-                await pywebview.api.save_file(currentFile, xmlString);
+                const xmlString = await window.pywebview.api.build_xml({ lexicon: lexiconToSave });
+                await window.pywebview.api.save_file(currentFile, xmlString);
                 isModified = false;
                 updateFileName();
             }
