@@ -1,6 +1,6 @@
 # ELAN Lexicon Editor
 
-An Electron-based application for creating and editing XML lexicon files following the ELAN lexicon schema.
+A Python + PyWebView application for creating and editing XML lexicon files following the ELAN lexicon schema.
 
 ## Features
 
@@ -13,8 +13,8 @@ An Electron-based application for creating and editing XML lexicon files followi
 
 ## Prerequisites
 
-- Node.js (v14 or later)
-- npm (v6 or later)
+- Python 3.8 or later
+- pip
 
 ## Installation
 
@@ -26,28 +26,16 @@ cd elan-lexicon-editor
 
 2. Install dependencies:
 ```bash
-npm install
-```
-
-## Development
-
-To run the application in development mode:
-
-```bash
-npm run dev
-```
-
-This will start the webpack development server and launch the Electron application. Any changes to the source files will automatically trigger a rebuild.
-
-## Building
-
-To create a production build:
-
-```bash
-npm run build
+pip install -r requirements.txt
 ```
 
 ## Usage
+
+To launch the application:
+
+```bash
+python app.py
+```
 
 1. Launch the application
 2. Click "Open" to load an existing XML lexicon file or create a new one
@@ -57,14 +45,9 @@ npm run build
 
 ## Project Structure
 
-- `src/main.js` - Main Electron process
-- `src/renderer.js` - Renderer process entry point
-- `src/components/` - React components
-  - `App.js` - Main application component
-  - `LexiconTable.js` - Table view component
-  - `EntryEditor.js` - Entry editor component
-- `webpack.config.js` - Webpack configuration
-- `package.json` - Project configuration and dependencies
+- `app.py` - Python entry point using PyWebView
+- `index.html` - Frontend interface
+- `requirements.txt` - Python dependencies
 
 ## License
 

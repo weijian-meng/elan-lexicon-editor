@@ -587,8 +587,8 @@
     </div>
     
     <script>
-        const { ipcRenderer } = require('electron');
-        const { v4: uuidv4 } = require('uuid');
+        // Access the Python backend through PyWebView's API
+        const uuidv4 = () => (crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
         
         // State
         let lexicon = null;
@@ -744,10 +744,10 @@
         }
         
         async function handleOpenFile() {
-            const result = await ipcRenderer.invoke('open-file');
+            const result = await window.pywebview.api.open_file();
             if (result) {
                 const { filePath, content } = result;
-                const parsedXml = await ipcRenderer.invoke('parse-xml', content);
+                const parsedXml = await window.pywebview.api.parse_xml(content);
                 lexicon = parsedXml.lexicon;
                 currentFile = filePath;
                 isModified = false;
@@ -756,17 +756,17 @@
                 clearEntryForm();
             }
         }
-        
+
         async function handleSaveFile() {
             if (!currentFile) {
-                const result = await ipcRenderer.invoke('save-file-dialog');
+                const result = await window.pywebview.api.save_file_dialog();
                 if (result) {
                     currentFile = result;
                 } else {
                     return;
                 }
             }
-            
+
             if (currentFile && lexicon) {
                 // Deep clone the lexicon to avoid modifying the original
                 const lexiconToSave = JSON.parse(JSON.stringify(lexicon));
@@ -774,8 +774,8 @@
                 // Fix custom fields to use two-part syntax
                 ensureTwoPartSyntaxForCustomFields(lexiconToSave);
                 
-                const xmlString = await ipcRenderer.invoke('build-xml', { lexicon: lexiconToSave });
-                await ipcRenderer.invoke('save-file', { filePath: currentFile, content: xmlString });
+                const xmlString = await window.pywebview.api.build_xml({ lexicon: lexiconToSave });
+                await window.pywebview.api.save_file(currentFile, xmlString);
                 isModified = false;
                 updateFileName();
             }
