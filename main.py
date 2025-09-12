@@ -1,5 +1,6 @@
 import os
 import unicodedata
+import re
 import webview
 import xmltodict
 
@@ -162,14 +163,23 @@ class Api:
             # Convert from xml2js-style to xmltodict-style
             xmltodict_obj = self._xmljs_to_xmltodict(data)
 
-            return xmltodict.unparse(
+            xml_out = xmltodict.unparse(
                 xmltodict_obj,
                 attr_prefix=self.ATTR_PREFIX,
                 cdata_key='_',
                 pretty=True,
                 full_document=True,
                 encoding='UTF-8',
+                short_empty_elements=True,
             )
+            # Force XML declaration to include standalone="yes" and uppercase UTF-8
+            xml_out = re.sub(
+                r'^<\?xml[^>]*\?>',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+                xml_out,
+                count=1,
+            )
+            return xml_out
         except Exception as e:
             print('Error building XML:', e)
             raise
