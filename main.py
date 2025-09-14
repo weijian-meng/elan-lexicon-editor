@@ -1,5 +1,7 @@
 import os
 import sys
+import threading
+import time
 import unicodedata
 import re
 import webview
@@ -7,6 +9,8 @@ import xmltodict
 
 class Api:
     ATTR_PREFIX = '$'
+    def __init__(self):
+        self._modified = False
 
     def _sanitize_xml(self, s: str) -> str:
         """Remove characters not allowed by XML 1.0 and strip BOM."""
@@ -71,6 +75,14 @@ class Api:
         except Exception as e:
             print('Error saving file:', e)
             return False
+
+    # Track modified state from the JS side to avoid UI deadlocks on close
+    def set_modified(self, modified: bool):
+        try:
+            self._modified = bool(modified)
+        except Exception:
+            self._modified = True
+        return self._modified
 
     def _xmltodict_to_xmljs(self, obj):
         if isinstance(obj, dict):
@@ -191,6 +203,173 @@ def main():
     base_dir = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
     html_path = os.path.join(base_dir, 'index.html')
     window = webview.create_window('ELAN Lexicon Editor', html_path, js_api=api)
+
+    def close_app():
+        """Properly close the application"""
+        print("Destroying window...")
+        try:
+            # First hide the window to give immediate feedback
+            window.hide()
+        except Exception:
+            pass
+        
+        import threading
+        # Schedule window destruction on a separate thread to avoid blocking
+        def delayed_destroy():
+            import time
+            time.sleep(0.1)  # Small delay to let current operations finish
+            try:
+                window.destroy()
+                print("Window destroyed successfully")
+            except Exception as e:
+                print(f"Error destroying window: {e}")
+                # Force exit if destroy doesn't work
+                try:
+                    import os
+                    print("Force exiting...")
+                    os._exit(0)
+                except Exception as e2:
+                    print(f"Error with force exit: {e2}")
+        
+        threading.Thread(target=delayed_destroy, daemon=True).start()
+
+    # Intercept window close to prompt saving unsaved work
+    def on_closing():
+        print(f"Close event triggered! Modified state: {getattr(api, '_modified', False)}")
+        # Never call into JS or block the GUI inside this event.
+        # Just consult the Python-side modified flag and, if needed,
+        # schedule any UI work on a background thread and cancel close.
+        if not getattr(api, '_modified', False):
+            print("No changes detected, allowing close")
+            return True  # no changes -> allow close
+
+        def _prompt_and_handle():
+            try:
+                print("Showing close confirmation dialog...")
+                
+                # Option 1: Use nice modal dialog
+                try:
+                    print("Attempting JavaScript modal dialog...")
+                    
+                    # Show the modal
+                    window.evaluate_js('showCloseConfirmDialog()')
+                    
+                    # Poll for result
+                    import time
+                    result = None
+                    timeout = 30  # 30 second timeout
+                    start_time = time.time()
+                    
+                    while time.time() - start_time < timeout:
+                        # Check if dialog is still shown
+                        dialog_shown = window.evaluate_js('isCloseDialogShown()')
+                        if not dialog_shown:
+                            # Dialog was closed, get the result
+                            result = window.evaluate_js('getCloseDialogResult()')
+                            break
+                        time.sleep(0.1)  # Small delay to avoid busy polling
+                    
+                    print(f"JavaScript dialog result: {result}")
+                    
+                    if str(result) == 'save':
+                        print("User chose to save - attempting to save and close")
+                        def _after_save(save_result=None):
+                            try:
+                                saved = bool(save_result)
+                                print(f"Save result: {saved}")
+                            except Exception:
+                                saved = False
+                            if saved:
+                                print("Save successful, closing window")
+                                api._modified = False
+                                close_app()
+                            else:
+                                print("Save failed or cancelled, staying open")
+                        
+                        try:
+                            print("Calling JavaScript save function...")
+                            window.evaluate_js('typeof window.__saveNow === "function" ? window.__saveNow() : Promise.resolve(false)', _after_save)
+                        except Exception as e:
+                            print(f"Error calling save function: {e}")
+                            
+                    elif str(result) == 'dont_save':
+                        print("User chose to close without saving")
+                        api._modified = False
+                        close_app()
+                    else:
+                        print("User cancelled - staying open")
+                        
+                except Exception as js_error:
+                    print(f"JavaScript dialog failed: {js_error}, falling back to native dialogs")
+                    
+                    # Fallback: Use native dialogs (2-step approach)
+                    save_choice = window.create_confirmation_dialog(
+                        'Unsaved Changes', 
+                        'You have unsaved changes. Do you want to save before closing?'
+                    )
+                    
+                    print(f"User choice for save: {save_choice}")
+                    
+                    if save_choice:
+                        print("User chose to save - attempting to save and close")
+                        def _after_save(result=None):
+                            try:
+                                saved = bool(result)
+                                print(f"Save result: {saved}")
+                            except Exception:
+                                saved = False
+                            if saved:
+                                print("Save successful, closing window")
+                                api._modified = False
+                                close_app()
+                            else:
+                                print("Save failed or cancelled, staying open")
+                        try:
+                            print("Calling JavaScript save function...")
+                            window.evaluate_js('typeof window.__saveNow === "function" ? window.__saveNow() : Promise.resolve(false)', _after_save)
+                        except Exception as e:
+                            print(f"Error calling save function: {e}")
+                    else:
+                        print("User chose not to save - asking for confirmation to close without saving")
+                        really_close = window.create_confirmation_dialog(
+                            'Confirm Close', 
+                            'Are you sure you want to close without saving? Your changes will be lost.'
+                        )
+                        
+                        print(f"User choice for close without save: {really_close}")
+                        
+                        if really_close:
+                            print("User confirmed close without save")
+                            api._modified = False
+                            close_app()
+                        else:
+                            print("User cancelled - staying open")
+                
+            except Exception as e:
+                print(f"Error in close prompt: {e}")
+                # Fallback to simple close without save
+                api._modified = False
+                close_app()
+
+        threading.Thread(target=_prompt_and_handle, daemon=True).start()
+        return False  # cancel this close; follow-up will destroy window
+
+    try:
+        print("Attempting to bind close event...")
+        if hasattr(window, 'events') and hasattr(window.events, 'closing'):
+            window.events.closing += on_closing
+            print("Successfully bound close event!")
+        else:
+            print("Window events or closing event not available")
+    except Exception as e:
+        print(f"Error binding close event: {e}")
+        # Alternative approach - set confirm_close
+        try:
+            window.confirm_close = True
+            print("Set confirm_close to True as fallback")
+        except Exception as e2:
+            print(f"Could not set confirm_close: {e2}")
+
     webview.start()
 
 
