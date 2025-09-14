@@ -58,9 +58,11 @@ coll = COLLECT(
     name='ELAN Lexicon Editor'
 )
 
+icon_path = os.path.join(project_dir, 'assets', 'app.icns')
+
 app = BUNDLE(
     coll,
     name='ELAN Lexicon Editor.app',
-    icon=None,
+    icon=icon_path if os.path.exists(icon_path) else None,
     bundle_identifier='com.yourdomain.elan-lexicon-editor',
 )
