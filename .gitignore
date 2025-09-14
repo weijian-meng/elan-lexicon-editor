@@ -18,7 +18,10 @@ __pycache__/
 .venv/
 venv/
 env/
-*.spec
+# Keep PyInstaller spec tracked; do not ignore *.spec
+
+# pyenv local version file
+.python-version
 
 # IDE and editor files
 .idea/

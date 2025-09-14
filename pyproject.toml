@@ -1,0 +1,23 @@
+[project]
+name = "elan-lexicon-editor"
+version = "0.1.0"
+description = "ELAN Lexicon Editor (Python + pywebview)"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "pywebview>=4.0.0",
+  "xmltodict>=0.13.0",
+]
+
+[project.urls]
+homepage = "https://github.com/yourusername/elan-lexicon-editor"
+
+# Optional developer tools installed on demand
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.0.0",
+]
+
+[tool.uv]
+# Use a local .venv by default (uv will create it on sync)
+venv = ".venv"

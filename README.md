@@ -1,6 +1,6 @@
 # ELAN Lexicon Editor
 
-A Python and [pywebview](https://pywebview.flowrl.com/) application for creating and editing XML lexicon files following the ELAN lexicon schema.
+Python + [pywebview](https://pywebview.flowrl.com/) application for creating and editing XML lexicon files following the ELAN lexicon schema.
 
 ## Features
 
@@ -14,36 +14,54 @@ A Python and [pywebview](https://pywebview.flowrl.com/) application for creating
 ## Prerequisites
 
 - Python 3.8+
-- pip
+- [uv](https://github.com/astral-sh/uv) for dependency management (optional but recommended)
 
-## Installation
+## Setup (with uv)
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/elan-lexicon-editor.git
-cd elan-lexicon-editor
+# Create and sync a local .venv from pyproject.toml
+uv sync
+
+# Run the app
+uv run python main.py
 ```
 
-2. Install dependencies:
+If you prefer pip/venv:
+
 ```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## Usage
-
-To run the application:
-
-```bash
 python main.py
 ```
 
 ## Project Structure
 
-- `main.py` - pywebview entry point
-- `index.html` - Front-end user interface
-- `lexicon/` - Sample lexicon files and schema
-- `requirements.txt` - Python dependencies
+- `main.py` — pywebview entry point (with MEIPASS support for packaged builds)
+- `index.html` — Front‑end UI
+- `lexicon/` — Sample lexicon files and schema
+- `pyproject.toml` — Project metadata and dependencies (uv)
+- `requirements.txt` — Plain requirements (legacy / pip)
+- `elan_lexicon_editor.spec` — PyInstaller spec for packaging
+
+## Packaging
+
+Using PyInstaller via uv:
+
+```bash
+# Install PyInstaller to the current environment (dev optional deps)
+uv pip install pyinstaller  # or: uvx pyinstaller elan_lexicon_editor.spec
+
+# Build using the provided spec
+uv run pyinstaller elan_lexicon_editor.spec
+
+# macOS: launch the app bundle
+open "dist/ELAN Lexicon Editor/ELAN Lexicon Editor.app"
+```
+
+Notes:
+- `main.py` resolves `index.html` from `sys._MEIPASS` when bundled, so packaged apps find resources correctly.
+- The serializer emits `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` and includes ELAN schema namespaces for interoperability.
 
 ## License
 
-ISC 
+ISC
