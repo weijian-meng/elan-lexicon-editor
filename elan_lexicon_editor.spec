@@ -10,6 +10,7 @@ project_dir = os.getcwd()
 
 datas = [
     (os.path.join(project_dir, 'index.html'), '.'),
+    (os.path.join(project_dir, 'assets'), 'assets'),
 ]
 
 hiddenimports = [
