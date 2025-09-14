@@ -13,11 +13,7 @@ dependencies = [
 homepage = "https://github.com/yourusername/elan-lexicon-editor"
 
 # Optional developer tools installed on demand
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
   "pyinstaller>=6.0.0",
 ]
-
-[tool.uv]
-# Use a local .venv by default (uv will create it on sync)
-venv = ".venv"

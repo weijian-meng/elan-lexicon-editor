@@ -4,11 +4,12 @@ block_cipher = None
 
 import os
 
-project_dir = os.path.abspath(os.path.dirname(__file__))
+# When executing a .spec with PyInstaller, __file__ may be undefined.
+# Use the current working directory as the project root.
+project_dir = os.getcwd()
 
 datas = [
     (os.path.join(project_dir, 'index.html'), '.'),
-    (os.path.join(project_dir, 'lexicon'), 'lexicon'),
 ]
 
 hiddenimports = [
@@ -43,17 +44,23 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=True,
+    argv_emulation=False,
     target_arch=None,
 )
 
 coll = COLLECT(
     exe,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
     upx=True,
     upx_exclude=[],
     name='ELAN Lexicon Editor'
+)
+
+app = BUNDLE(
+    coll,
+    name='ELAN Lexicon Editor.app',
+    icon=None,
+    bundle_identifier='com.yourdomain.elan-lexicon-editor',
 )

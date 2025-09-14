@@ -51,14 +51,15 @@ Using PyInstaller via uv:
 # Install PyInstaller to the current environment (dev optional deps)
 uv pip install pyinstaller  # or: uvx pyinstaller elan_lexicon_editor.spec
 
-# Build using the provided spec
+# Build a macOS .app bundle using the provided spec
 uv run pyinstaller elan_lexicon_editor.spec
 
-# macOS: launch the app bundle
-open "dist/ELAN Lexicon Editor/ELAN Lexicon Editor.app"
+# macOS: launch the .app
+open "dist/ELAN Lexicon Editor.app"
 ```
 
 Notes:
+- The packaged app only includes `index.html` (sample `lexicon/` files are not bundled). Use Open/Save to work with files from your disk.
 - `main.py` resolves `index.html` from `sys._MEIPASS` when bundled, so packaged apps find resources correctly.
 - The serializer emits `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` and includes ELAN schema namespaces for interoperability.
 
