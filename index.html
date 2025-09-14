@@ -393,6 +393,56 @@
         .panel-content::-webkit-scrollbar-corner {
             background: #f1f1f1;
         }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        .modal .dialog-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            padding: 16px 20px;
+        }
+
+        .modal .dialog-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .modal .dialog-body {
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .modal .dialog-footer {
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 16px 20px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
     </style>
 </head>
 <body>
@@ -585,15 +635,113 @@
             </div>
         </div>
     </div>
+
+    <!-- Close Confirmation Modal -->
+    <div id="closeConfirmModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="dialog-header">
+                <h3>Unsaved Changes</h3>
+            </div>
+            <div class="dialog-body">
+                <p>You have unsaved changes. What would you like to do?</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="button" id="closeConfirmCancel">Cancel</button>
+                <button class="button" id="closeConfirmDontSave">Don't Save</button>
+                <button class="button primary" id="closeConfirmSave">Save & Close</button>
+            </div>
+        </div>
+    </div>
     
     <script>
+        console.log('JavaScript starting to load...');
+        
         const uuidv4 = () => window.crypto.randomUUID();
+        
+        // Modal dialog function for close confirmation
+        let closeDialogResult = null;
+        let closeDialogShown = false;
+        
+        function showCloseConfirmDialog() {
+            closeDialogResult = null;
+            closeDialogShown = true;
+            
+            const modal = document.getElementById('closeConfirmModal');
+            const cancelBtn = document.getElementById('closeConfirmCancel');
+            const dontSaveBtn = document.getElementById('closeConfirmDontSave');
+            const saveBtn = document.getElementById('closeConfirmSave');
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Handle button clicks
+            const handleChoice = (choice) => {
+                modal.style.display = 'none';
+                closeDialogResult = choice;
+                closeDialogShown = false;
+            };
+            
+            // Remove any existing event listeners to avoid duplicates
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            const newDontSaveBtn = dontSaveBtn.cloneNode(true);
+            const newSaveBtn = saveBtn.cloneNode(true);
+            
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+            dontSaveBtn.parentNode.replaceChild(newDontSaveBtn, dontSaveBtn);
+            saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+            
+            // Add event listeners
+            newCancelBtn.addEventListener('click', () => handleChoice('cancel'));
+            newDontSaveBtn.addEventListener('click', () => handleChoice('dont_save'));
+            newSaveBtn.addEventListener('click', () => handleChoice('save'));
+            
+            // Handle ESC key and clicking outside modal
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    handleChoice('cancel');
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            
+            const handleOutsideClick = (e) => {
+                if (e.target === modal) {
+                    handleChoice('cancel');
+                    modal.removeEventListener('click', handleOutsideClick);
+                }
+            };
+            
+            document.addEventListener('keydown', handleEscape);
+            modal.addEventListener('click', handleOutsideClick);
+        }
+        
+        function getCloseDialogResult() {
+            return closeDialogResult;
+        }
+        
+        function isCloseDialogShown() {
+            return closeDialogShown;
+        }
         
         // State
         let lexicon = null;
         let selectedEntry = null;
         let currentFile = null;
         let isModified = false;
+        // Keep Python informed about modified state changes to avoid JS calls during close
+        function setIsModified(value) {
+            isModified = !!value;
+            console.log(`Setting modified state to: ${isModified}`);
+            try {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_modified === 'function') {
+                    window.pywebview.api.set_modified(isModified);
+                    console.log(`Successfully sent modified state to Python: ${isModified}`);
+                } else {
+                    console.log('pywebview API not available for set_modified');
+                }
+            } catch (e) {
+                console.log('Error setting modified state:', e);
+            }
+        }
         let entryHasChanges = false;
         let originalEntry = null;
         
@@ -633,8 +781,14 @@
         
         // Event Listeners
         newLexiconBtn.addEventListener('click', showNewLexiconDialog);
-        openFileBtn.addEventListener('click', handleOpenFile);
-        saveFileBtn.addEventListener('click', handleSaveFile);
+        openFileBtn.addEventListener('click', function() {
+            console.log('Open button clicked!');
+            handleOpenFile();
+        });
+        saveFileBtn.addEventListener('click', function() {
+            console.log('Save button clicked!');
+            handleSaveFile();
+        });
         addEntryBtn.addEventListener('click', handleAddEntry);
         removeEntryBtn.addEventListener('click', handleRemoveEntry);
         addSenseBtn.addEventListener('click', handleAddSense);
@@ -645,6 +799,8 @@
         cancelConfigBtn.addEventListener('click', hideConfigDialog);
         saveConfigBtn.addEventListener('click', handleSaveConfig);
         addCustomFieldBtn.addEventListener('click', handleAddCustomField);
+        
+        console.log('All event listeners set up!');
         
         configTabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -743,24 +899,35 @@
         }
         
         async function handleOpenFile() {
+            console.log('handleOpenFile called');
             if (!(window.pywebview && window.pywebview.api)) {
+                console.log('pywebview API not available');
                 alert('The native bridge is not ready yet. Please try again.');
                 return;
             }
+            console.log('Calling open_file API...');
             const result = await window.pywebview.api.open_file();
-            if (!result) return;
+            console.log('Open file result:', result);
+            if (!result) {
+                console.log('No file selected or open failed');
+                return;
+            }
             const { filePath, content } = result;
+            console.log('File path:', filePath, 'Content length:', content ? content.length : 'no content');
             try {
+                console.log('Parsing XML...');
                 const parsedXml = await window.pywebview.api.parse_xml(content);
+                console.log('Parsed XML:', parsedXml);
                 if (!parsedXml || !parsedXml.lexicon) {
                     throw new Error('Parsed XML has no lexicon root');
                 }
                 lexicon = parsedXml.lexicon;
                 currentFile = filePath;
-                isModified = false;
+                setIsModified(false);
                 updateFileName();
                 renderLexiconTable();
                 clearEntryForm();
+                console.log('File opened successfully');
             } catch (err) {
                 console.error('Open/parse failed:', err);
                 alert(`Failed to open file.\n${(err && err.message) || err}`);
@@ -768,32 +935,95 @@
         }
 
         async function handleSaveFile() {
-            if (!currentFile) {
-                if (!(window.pywebview && window.pywebview.api)) {
-                    alert('The native bridge is not ready yet. Please try again.');
-                    return;
+            console.log('handleSaveFile called');
+            try {
+                if (!currentFile) {
+                    if (!(window.pywebview && window.pywebview.api)) {
+                        console.log('pywebview API not ready');
+                        alert('The native bridge is not ready yet. Please try again.');
+                        return false;
+                    }
+                    console.log('Getting save file dialog...');
+                    const result = await window.pywebview.api.save_file_dialog();
+                    if (result) {
+                        currentFile = result;
+                        console.log('Save file path selected:', currentFile);
+                    } else {
+                        console.log('Save dialog cancelled');
+                        return false;
+                    }
                 }
-                const result = await window.pywebview.api.save_file_dialog();
-                if (result) {
-                    currentFile = result;
+
+                if (currentFile && lexicon) {
+                    console.log('Saving to file:', currentFile);
+                    // Deep clone the lexicon to avoid modifying the original
+                    const lexiconToSave = JSON.parse(JSON.stringify(lexicon));
+
+                    // Fix custom fields to use two-part syntax
+                    ensureTwoPartSyntaxForCustomFields(lexiconToSave);
+
+                    console.log('Building XML...');
+                    const xmlString = await window.pywebview.api.build_xml({ lexicon: lexiconToSave });
+                    console.log('Saving file...');
+                    const saveResult = await window.pywebview.api.save_file(currentFile, xmlString);
+                    console.log('Save result:', saveResult);
+                    
+                    if (saveResult) {
+                        setIsModified(false);
+                        updateFileName();
+                        console.log('Save successful');
+                        return true;
+                    } else {
+                        console.log('Save failed');
+                        alert('Failed to save file');
+                        return false;
+                    }
                 } else {
-                    return;
+                    console.log('No file or lexicon to save');
+                    return false;
                 }
-            }
-
-            if (currentFile && lexicon) {
-                // Deep clone the lexicon to avoid modifying the original
-                const lexiconToSave = JSON.parse(JSON.stringify(lexicon));
-
-                // Fix custom fields to use two-part syntax
-                ensureTwoPartSyntaxForCustomFields(lexiconToSave);
-
-                const xmlString = await window.pywebview.api.build_xml({ lexicon: lexiconToSave });
-                await window.pywebview.api.save_file(currentFile, xmlString);
-                isModified = false;
-                updateFileName();
+            } catch (error) {
+                console.error('Error in handleSaveFile:', error);
+                alert('Error saving file: ' + error.message);
+                return false;
             }
         }
+        // Allow native side to trigger a save attempt. Resolves to true if saved.
+        window.__saveNow = async function() {
+            try {
+                console.log('__saveNow called, current modified state:', isModified);
+                const wasModified = !!isModified;
+                const saveResult = await handleSaveFile();
+                console.log('Save result from handleSaveFile:', saveResult);
+                const nowModified = !!isModified;
+                console.log('Modified state after save:', nowModified);
+                // Return true if we successfully saved something that was modified
+                const success = saveResult && wasModified && !nowModified;
+                console.log('Returning success:', success);
+                return success;
+            } catch (e) {
+                console.error('Error in __saveNow:', e);
+                return false;
+            }
+        };
+        
+        // Show close confirmation using native dialogs (synchronous)
+        window.__showCloseConfirmation = function() {
+            // First dialog: Do you want to save?
+            const wantToSave = confirm("You have unsaved changes.\n\nDo you want to save before closing?");
+            
+            if (wantToSave) {
+                return 'save';
+            } else {
+                // Second dialog: Are you sure you want to close without saving?
+                const confirmClose = confirm("Are you sure you want to close without saving?\n\nYour changes will be lost.");
+                if (confirmClose) {
+                    return 'dont_save';
+                } else {
+                    return 'cancel';
+                }
+            }
+        };
         
         // Add this new function to ensure custom fields use two-part syntax
         function ensureTwoPartSyntaxForCustomFields(lexiconObj) {
@@ -802,9 +1032,9 @@
             // Process each header element (usually just one)
             if (Array.isArray(lexiconObj.header)) {
                 lexiconObj.header.forEach(header => {
-                    if (header['custom-fields'] && Array.isArray(header['custom-fields'])) {
+                    if (header && header['custom-fields'] && Array.isArray(header['custom-fields'])) {
                         header['custom-fields'].forEach(customFields => {
-                            if (customFields['field-spec']) {
+                            if (customFields && customFields['field-spec']) {
                                 // Handle array of field specs
                                 if (Array.isArray(customFields['field-spec'])) {
                                     customFields['field-spec'] = customFields['field-spec'].map(spec => {
@@ -816,7 +1046,7 @@
                                     });
                                 } 
                                 // Handle single field spec
-                                else if (customFields['field-spec'].$ && !customFields['field-spec']._) {
+                                else if (customFields['field-spec'] && customFields['field-spec'].$ && !customFields['field-spec']._) {
                                     customFields['field-spec']._ = '';
                                 }
                             }
@@ -825,11 +1055,11 @@
                 });
             }
             // Handle non-array header (unlikely but possible)
-            else if (lexiconObj.header['custom-fields']) {
+            else if (lexiconObj.header && lexiconObj.header['custom-fields']) {
                 const header = lexiconObj.header;
                 if (Array.isArray(header['custom-fields'])) {
                     header['custom-fields'].forEach(customFields => {
-                        if (customFields['field-spec']) {
+                        if (customFields && customFields['field-spec']) {
                             // Handle array of field specs
                             if (Array.isArray(customFields['field-spec'])) {
                                 customFields['field-spec'] = customFields['field-spec'].map(spec => {
@@ -841,7 +1071,7 @@
                                 });
                             } 
                             // Handle single field spec
-                            else if (customFields['field-spec'].$ && !customFields['field-spec']._) {
+                            else if (customFields['field-spec'] && customFields['field-spec'].$ && !customFields['field-spec']._) {
                                 customFields['field-spec']._ = '';
                             }
                         }
@@ -880,7 +1110,7 @@
             };
             
             currentFile = null;
-            isModified = true;
+            setIsModified(true);
             updateFileName();
             hideNewLexiconDialog();
             renderLexiconTable();
@@ -1064,7 +1294,7 @@
                 });
             });
             
-            isModified = true;
+            setIsModified(true);
             entryHasChanges = true;
             updateFileName();
             updateEntryStatus();
@@ -1359,7 +1589,7 @@
                     }
                     
                     selectedEntry.$.dateModified = new Date().toISOString();
-                    isModified = true;
+                    setIsModified(true);
                     entryHasChanges = true;
                     updateFileName();
                     updateEntryStatus();
@@ -1426,7 +1656,7 @@
                 input.onchange = () => {
                     selectedEntry[key] = [input.value];
                     selectedEntry.$.dateModified = new Date().toISOString();
-                    isModified = true;
+                    setIsModified(true);
                     entryHasChanges = true;
                     updateFileName();
                     updateEntryStatus();
@@ -1489,7 +1719,7 @@
                     input.onchange = () => {
                         field._ = input.value;
                         selectedEntry.$.dateModified = new Date().toISOString();
-                        isModified = true;
+                        setIsModified(true);
                         entryHasChanges = true;
                         updateFileName();
                         updateEntryStatus();
@@ -1607,7 +1837,7 @@
                     }
                     
                     selectedEntry.$.dateModified = new Date().toISOString();
-                    isModified = true;
+                    setIsModified(true);
                     entryHasChanges = true;
                     updateFileName();
                     updateEntryStatus();
@@ -1657,7 +1887,7 @@
                 input.onchange = () => {
                     sense[key] = [input.value];
                     selectedEntry.$.dateModified = new Date().toISOString();
-                    isModified = true;
+                    setIsModified(true);
                     entryHasChanges = true;
                     updateFileName();
                     updateEntryStatus();
@@ -1703,7 +1933,7 @@
                     input.onchange = () => {
                         field._ = input.value;
                         selectedEntry.$.dateModified = new Date().toISOString();
-                        isModified = true;
+                        setIsModified(true);
                         entryHasChanges = true;
                         updateFileName();
                         updateEntryStatus();
@@ -1974,7 +2204,7 @@
             
             console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2));
             
-            isModified = true;
+            setIsModified(true);
             updateFileName();
             hideConfigDialog();
         }
