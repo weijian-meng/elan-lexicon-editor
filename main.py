@@ -1,4 +1,5 @@
 import os
+import sys
 import unicodedata
 import re
 import webview
@@ -187,7 +188,8 @@ class Api:
 
 def main():
     api = Api()
-    html_path = os.path.join(os.path.dirname(__file__), 'index.html')
+    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
+    html_path = os.path.join(base_dir, 'index.html')
     window = webview.create_window('ELAN Lexicon Editor', html_path, js_api=api)
     webview.start()
 
