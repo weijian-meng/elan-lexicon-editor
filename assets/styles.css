@@ -132,6 +132,28 @@
             box-sizing: border-box;
             border-right: 1px solid #ddd;
         }
+        .lexicon-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .lexicon-table th.sortable::after {
+            content: '';
+            display: inline-block;
+            margin-left: 6px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            transform: translateY(1px);
+        }
+        .lexicon-table th.sortable[data-sort-direction="asc"]::after {
+            border-top-color: #333;
+            border-bottom-color: transparent;
+        }
+        .lexicon-table th.sortable[data-sort-direction="desc"]::after {
+            border-bottom-color: #333;
+            border-top-color: transparent;
+        }
         .lexicon-table td {
             border-bottom: 1px solid #ddd;
             border-right: 1px solid #ddd;
