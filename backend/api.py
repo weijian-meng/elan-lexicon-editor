@@ -201,13 +201,24 @@ class Api:
                 return v.strip()
             return v
 
+        def ensure_list(x):
+            if x is None:
+                return []
+            if isinstance(x, list):
+                return x
+            return [x]
+
         def sorted_senses(senses):
             senses = list(senses or [])
             senses.sort(key=lambda s: (s.get('$', {}).get('order'), s.get('$', {}).get('id')))
             return senses
 
         def sorted_variants(variants):
-            return sorted(list(variants or []))
+            arr = ensure_list(variants)
+            # Normalize and drop empty strings
+            arr = [norm_text(x) for x in arr]
+            arr = [x for x in arr if isinstance(x, str) and x != '']
+            return sorted(arr)
 
         def norm_entry(e):
             e = copy.deepcopy(e)
@@ -216,10 +227,11 @@ class Api:
                 attrs = dict(attrs)
                 attrs.pop('dateModified', None)
                 e['$'] = attrs
-            # normalize standard fields
+            # normalize standard fields (coerce to single-item lists of strings)
             for k in ('lexical-unit', 'morph-type'):
-                if k in e and isinstance(e[k], list) and e[k]:
-                    e[k] = [norm_text(e[k][0])]
+                if k in e:
+                    vals = ensure_list(e[k])
+                    e[k] = [norm_text(vals[0]) if vals else '']
             # normalize variants
             if 'variant' in e:
                 e['variant'] = sorted_variants(e.get('variant'))
@@ -230,16 +242,17 @@ class Api:
                 s_attrs = s.get('$', {})
                 # standard fields normalization
                 for k in ('grammatical-category', 'gloss'):
-                    if k in s and isinstance(s[k], list) and s[k]:
-                        s[k] = [norm_text(s[k][0])]
+                    if k in s:
+                        vals = ensure_list(s[k])
+                        s[k] = [norm_text(vals[0]) if vals else '']
                 s['$'] = s_attrs
             e['sense'] = senses
             # normalize custom fields (direct fields)
             for key, val in list(e.items()):
                 if key in ('$', 'lexical-unit', 'morph-type', 'sense', 'variant'):
                     continue
-                if isinstance(val, list) and val:
-                    e[key] = [norm_text(val[0])]
+                vals = ensure_list(val)
+                e[key] = [norm_text(vals[0]) if vals else '']
             return e
 
         canon = copy.deepcopy(lex or {})
@@ -257,7 +270,9 @@ class Api:
             idx[str(entry_id)] = e
         return idx
 
-    def _diff_entries(self, left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
+    def _diff_entries(self, left: Dict[str, Any], right: Dict[str, Any], *,
+                      include_entry_fields: List[str] | None = None,
+                      include_sense_fields: List[str] | None = None) -> Dict[str, Any]:
         left_idx = self._index_entries(left)
         right_idx = self._index_entries(right)
         left_ids = set(left_idx.keys())
@@ -268,21 +283,40 @@ class Api:
 
         def diff_fields(e1: Dict[str, Any], e2: Dict[str, Any]) -> List[Dict[str, Any]]:
             changes = []
+            # attributes (id/dateCreated/dateModified) if requested
+            entry_attr_names = {'id', 'dateCreated', 'dateModified'}
+            if include_entry_fields is None:
+                attr_include = set()
+            else:
+                attr_include = set(include_entry_fields) & entry_attr_names
+            if attr_include:
+                a1 = e1.get('$', {}) or {}
+                a2 = e2.get('$', {}) or {}
+                for an in sorted(attr_include):
+                    v1 = a1.get(an)
+                    v2 = a2.get(an)
+                    if v1 != v2:
+                        changes.append({'kind': 'attr', 'name': an, 'before': v1, 'after': v2})
             # standard fields
             for field in ('lexical-unit', 'morph-type'):
+                if include_entry_fields is not None and field not in include_entry_fields:
+                    continue
                 v1 = (e1.get(field) or [''])[0]
                 v2 = (e2.get(field) or [''])[0]
                 if v1 != v2:
                     changes.append({'kind': 'field', 'name': field, 'before': v1, 'after': v2})
             # variants (list)
-            v1 = e1.get('variant') or []
-            v2 = e2.get('variant') or []
-            if v1 != v2:
-                changes.append({'kind': 'variants', 'before': v1, 'after': v2})
+            if include_entry_fields is None or 'variant' in include_entry_fields:
+                v1 = e1.get('variant') or []
+                v2 = e2.get('variant') or []
+                if v1 != v2:
+                    changes.append({'kind': 'variants', 'name': 'variant', 'before': v1, 'after': v2})
             # other direct custom fields
             std = {'$', 'lexical-unit', 'morph-type', 'sense', 'variant'}
             keys = set(k for k in e1.keys() if k not in std) | set(k for k in e2.keys() if k not in std)
             for k in sorted(keys):
+                if include_entry_fields is not None and k not in include_entry_fields:
+                    continue
                 v1 = (e1.get(k) or [''])
                 v1 = v1[0] if v1 else ''
                 v2 = (e2.get(k) or [''])
@@ -311,7 +345,17 @@ class Api:
 
             def sense_changes(a, b):
                 changes = []
+                # sense attribute id if requested
+                if include_sense_fields is not None and 'id' in include_sense_fields:
+                    sa = a.get('$', {}) or {}
+                    sb = b.get('$', {}) or {}
+                    v1 = sa.get('id')
+                    v2 = sb.get('id')
+                    if v1 != v2:
+                        changes.append({'kind': 'attr', 'name': 'id', 'before': v1, 'after': v2})
                 for field in ('grammatical-category', 'gloss'):
+                    if include_sense_fields is not None and field not in include_sense_fields:
+                        continue
                     v1 = (a.get(field) or [''])[0]
                     v2 = (b.get(field) or [''])[0]
                     if v1 != v2:
@@ -320,6 +364,8 @@ class Api:
                 std = {'$', 'grammatical-category', 'gloss'}
                 keys = set(k for k in a.keys() if k not in std) | set(k for k in b.keys() if k not in std)
                 for k in sorted(keys):
+                    if include_sense_fields is not None and k not in include_sense_fields:
+                        continue
                     v1 = (a.get(k) or [''])
                     v1 = v1[0] if v1 else ''
                     v2 = (b.get(k) or [''])
@@ -424,7 +470,11 @@ class Api:
         lex_r = self._resolve_source(right)
         can_l = self._canonicalize_lexicon(lex_l, ignore_timestamps=opts.get('ignore_timestamps', True))
         can_r = self._canonicalize_lexicon(lex_r, ignore_timestamps=opts.get('ignore_timestamps', True))
-        entry_diff = self._diff_entries(can_l, can_r)
+        include_entry_fields = options.get('include_entry_fields') if isinstance(options, dict) else None
+        include_sense_fields = options.get('include_sense_fields') if isinstance(options, dict) else None
+        entry_diff = self._diff_entries(can_l, can_r,
+                                       include_entry_fields=include_entry_fields,
+                                       include_sense_fields=include_sense_fields)
         summary = {
             'entries_added': len(entry_diff['added']),
             'entries_removed': len(entry_diff['removed']),
@@ -434,3 +484,12 @@ class Api:
             'summary': summary,
             'entries': entry_diff,
         }
+
+    # Expose resolving a source into a lexicon for frontend apply operations
+    def get_lexicon_from_source(self, source: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            lex = self._resolve_source(source) or {}
+            return {'lexicon': lex}
+        except Exception as e:
+            print('Error resolving source:', e)
+            return {'lexicon': {}}

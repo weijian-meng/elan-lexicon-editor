@@ -84,6 +84,11 @@ function isCloseDialogShown() {
             } catch (e) {
                 console.log('Error setting modified state:', e);
             }
+            try {
+                const diffBtnEl = document.getElementById('diffBtn');
+                if (saveFileBtn) saveFileBtn.disabled = !(lexicon && (isModified || !currentFile));
+                if (diffBtnEl) diffBtnEl.disabled = !lexicon;
+            } catch (e) {}
         }
         let entryHasChanges = false;
         let originalEntry = null;
@@ -135,6 +140,12 @@ function isCloseDialogShown() {
         configBtn.addEventListener('click', () => { if (window.ConfigDialog) window.ConfigDialog.show(); });
         
         console.log('All event listeners set up!');
+        try {
+            const diffBtnEl = document.getElementById('diffBtn');
+            if (saveFileBtn) saveFileBtn.disabled = true;
+            if (diffBtnEl) diffBtnEl.disabled = !lexicon;
+        } catch (e) {}
+        try { updateButtonsState(); } catch (e) {}
         
         // Config tabs are handled by ConfigDialog module
         
@@ -176,6 +187,17 @@ function isCloseDialogShown() {
             window.DiffViewer.init({
                 getLexicon: () => lexicon,
                 getCurrentFile: () => currentFile,
+                onChange: () => {
+                    try {
+                        setIsModified(true);
+                        updateFileName();
+                        updateEntryStatus();
+                        renderLexiconTable();
+                        renderEntryForm();
+                    } catch (e) {
+                        console.error('Error in diff apply onChange:', e);
+                    }
+                }
             });
         }
 
