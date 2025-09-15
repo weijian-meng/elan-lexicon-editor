@@ -232,12 +232,15 @@
             justify-content: center;
             z-index: 1000;
         }
-        .dialog {
-            background-color: white;
-            border-radius: 4px;
-            width: 400px;
-            padding: 20px;
-        }
+.dialog {
+    background-color: white;
+    border-radius: 4px;
+    width: 400px;
+    padding: 20px;
+}
+.diff-actions { display: flex; align-items: center; gap: 8px; }
+.diff-actions .spacer { flex: 1; }
+.diff-results { max-height: 50vh; overflow: auto; }
         .dialog-header {
             margin-bottom: 20px;
         }
