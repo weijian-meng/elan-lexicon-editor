@@ -25,9 +25,21 @@
     refs.dateModifiedInput = $('dateModified');
     refs.variantsContainer = $('variantsContainer');
     refs.addVariantBtn = $('addVariantBtn');
+    refs.entryHeader = refs.entryDetails ? refs.entryDetails.querySelector('.entry-header h2') : null;
 
     if (refs.addSenseBtn) refs.addSenseBtn.onclick = handleAddSense;
     if (refs.addVariantBtn) refs.addVariantBtn.onclick = handleAddVariant;
+  }
+
+  function updateEntryHeading() {
+    if (!refs.entryHeader || !selectedEntry) return;
+    
+    const lexicalUnit = (selectedEntry['lexical-unit'] && selectedEntry['lexical-unit'][0]) || '';
+    if (lexicalUnit.trim()) {
+      refs.entryHeader.textContent = `Entry: ${lexicalUnit}`;
+    } else {
+      refs.entryHeader.textContent = 'Entry Details';
+    }
   }
 
   function markChanged() {
@@ -141,6 +153,8 @@
       });
     });
 
+    // Update the heading when lexical unit changes
+    updateEntryHeading();
     markChanged();
   }
 
@@ -533,6 +547,9 @@
 
     // Custom entry-level fields after base sections
     renderCustomEntryFields();
+    
+    // Update the heading to show the lexical unit
+    updateEntryHeading();
   }
 
   function load(entry) {
@@ -546,4 +563,3 @@
 
   window.EntryEditor = { init, load, clear };
 })();
-
