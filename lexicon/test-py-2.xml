@@ -23,4 +23,12 @@
 			<gloss>pear</gloss>
 		</sense>
 	</entry>
+	<entry id="e_7074a2ad-d5c2-4c53-aae3-d940d4504e71" dateCreated="2025-09-15T16:29:19.622Z" dateModified="2025-09-15T16:30:14.499Z">
+		<lexical-unit>peachy</lexical-unit>
+		<morph-type>stem</morph-type>
+		<sense id="s_8acd574b-13f8-4c92-9084-cae28ce67bd3" order="1">
+			<grammatical-category>n</grammatical-category>
+			<gloss>peach</gloss>
+		</sense>
+	</entry>
 </lexicon>
