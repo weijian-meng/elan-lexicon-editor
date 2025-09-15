@@ -135,6 +135,7 @@ function isCloseDialogShown() {
         const discardChangesBtn = document.getElementById('discardChangesBtn');
         const configBtn = document.getElementById('configBtn');
         const configDialog = document.getElementById('configDialog');
+        const displayOptionsBtn = document.getElementById('displayOptionsBtn');
         
         // Event Listeners
         newLexiconBtn.addEventListener('click', showNewLexiconDialog);
@@ -158,6 +159,11 @@ function isCloseDialogShown() {
         createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
         discardChangesBtn.addEventListener('click', handleDiscardChanges);
         configBtn.addEventListener('click', () => { if (window.ConfigDialog) window.ConfigDialog.show(); });
+        if (displayOptionsBtn) {
+            displayOptionsBtn.addEventListener('click', () => {
+                if (window.DisplayOptions) window.DisplayOptions.show();
+            });
+        }
         
         console.log('All event listeners set up!');
         try {
@@ -174,7 +180,7 @@ function isCloseDialogShown() {
         if (window.LexiconTable) {
             window.LexiconTable.init({
                 tbody: lexiconTableBody,
-                headers: document.querySelectorAll('.table-header th'),
+                headerRow: document.querySelector('.table-header thead tr'),
                 onSelect: (entry) => selectEntry(entry)
             });
         }
@@ -201,6 +207,14 @@ function isCloseDialogShown() {
                 onChange: () => {
                     setIsModified(true);
                     updateFileName();
+                }
+            });
+        }
+
+        if (window.DisplayOptions) {
+            window.DisplayOptions.init({
+                onApply: () => {
+                    try { renderLexiconTable(); } catch (e) {}
                 }
             });
         }
