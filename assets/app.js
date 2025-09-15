@@ -86,8 +86,23 @@ function isCloseDialogShown() {
             }
             try {
                 const diffBtnEl = document.getElementById('diffBtn');
-                if (saveFileBtn) saveFileBtn.disabled = !(lexicon && (isModified || !currentFile));
-                if (diffBtnEl) diffBtnEl.disabled = !lexicon;
+                const hasLex = !!lexicon;
+                const saveDisabled = !(hasLex && (isModified || !currentFile));
+                if (saveFileBtn) {
+                    saveFileBtn.disabled = saveDisabled;
+                    saveFileBtn.style.opacity = saveDisabled ? '0.5' : '1';
+                    saveFileBtn.style.cursor = saveDisabled ? 'not-allowed' : 'pointer';
+                }
+                if (diffBtnEl) {
+                    diffBtnEl.disabled = !hasLex;
+                    diffBtnEl.style.opacity = diffBtnEl.disabled ? '0.5' : '1';
+                    diffBtnEl.style.cursor = diffBtnEl.disabled ? 'not-allowed' : 'pointer';
+                }
+                if (closeFileBtn) {
+                    closeFileBtn.disabled = !hasLex;
+                    closeFileBtn.style.opacity = closeFileBtn.disabled ? '0.5' : '1';
+                    closeFileBtn.style.cursor = closeFileBtn.disabled ? 'not-allowed' : 'pointer';
+                }
             } catch (e) {}
         }
         let entryHasChanges = false;
@@ -97,6 +112,7 @@ function isCloseDialogShown() {
         const newLexiconBtn = document.getElementById('newLexiconBtn');
         const openFileBtn = document.getElementById('openFileBtn');
         const saveFileBtn = document.getElementById('saveFileBtn');
+        const closeFileBtn = document.getElementById('closeFileBtn');
         const addEntryBtn = document.getElementById('addEntryBtn');
         const removeEntryBtn = document.getElementById('removeEntryBtn');
         const lexiconTableBody = document.getElementById('lexiconTableBody');
@@ -126,6 +142,10 @@ function isCloseDialogShown() {
             console.log('Open button clicked!');
             handleOpenFile();
         });
+        closeFileBtn.addEventListener('click', function() {
+            console.log('Close (file) button clicked!');
+            handleCloseFile();
+        });
         saveFileBtn.addEventListener('click', function() {
             console.log('Save button clicked!');
             handleSaveFile();
@@ -144,6 +164,7 @@ function isCloseDialogShown() {
             const diffBtnEl = document.getElementById('diffBtn');
             if (saveFileBtn) saveFileBtn.disabled = true;
             if (diffBtnEl) diffBtnEl.disabled = !lexicon;
+            if (closeFileBtn) closeFileBtn.disabled = !lexicon;
         } catch (e) {}
         try { updateButtonsState(); } catch (e) {}
         
@@ -375,6 +396,88 @@ function isCloseDialogShown() {
                 console.error('Error in handleSaveFile:', error);
                 alert('Error saving file: ' + error.message);
                 return false;
+            }
+        }
+
+        // Helper: show the in-app close confirm and await the choice
+        function promptUnsavedChoice() {
+            return new Promise((resolve) => {
+                try {
+                    showCloseConfirmDialog();
+                } catch (e) {
+                    resolve('cancel');
+                    return;
+                }
+                const start = Date.now();
+                const interval = setInterval(() => {
+                    try {
+                        const shown = typeof isCloseDialogShown === 'function' ? isCloseDialogShown() : false;
+                        if (!shown) {
+                            clearInterval(interval);
+                            const result = typeof getCloseDialogResult === 'function' ? getCloseDialogResult() : 'cancel';
+                            resolve(result || 'cancel');
+                        } else if (Date.now() - start > 30000) {
+                            clearInterval(interval);
+                            resolve('cancel');
+                        }
+                    } catch (e) {
+                        clearInterval(interval);
+                        resolve('cancel');
+                    }
+                }, 100);
+            });
+        }
+
+        // Clear current lexicon and reset UI (keep app window open)
+        function resetAfterClose() {
+            selectedEntry = null;
+            entryHasChanges = false;
+            originalEntry = null;
+            lexicon = null;
+            currentFile = null;
+            try { renderLexiconTable(); } catch (e) {}
+            try { clearEntryForm(); } catch (e) {}
+            try { updateEntryStatus(); } catch (e) {}
+            try { updateFileName(); } catch (e) {}
+            try {
+                // Disable Save/Review visually
+                const diffBtnEl = document.getElementById('diffBtn');
+                if (saveFileBtn) {
+                    saveFileBtn.disabled = true;
+                    saveFileBtn.style.opacity = '0.5';
+                    saveFileBtn.style.cursor = 'not-allowed';
+                }
+                if (diffBtnEl) {
+                    diffBtnEl.disabled = true;
+                    diffBtnEl.style.opacity = '0.5';
+                    diffBtnEl.style.cursor = 'not-allowed';
+                }
+            } catch (e) {}
+        }
+
+        async function handleCloseFile() {
+            try {
+                if (!lexicon) {
+                    // Nothing open; just ensure UI reflects no file
+                    setIsModified(false);
+                    resetAfterClose();
+                    return;
+                }
+                if (isModified) {
+                    const choice = await promptUnsavedChoice();
+                    if (String(choice) === 'save') {
+                        const saved = await handleSaveFile();
+                        if (!saved) return; // abort close if save failed or cancelled
+                        // fallthrough to close after successful save
+                    } else if (String(choice) === 'cancel') {
+                        return; // abort close
+                    }
+                }
+                // Close without saving or after save
+                setIsModified(false);
+                resetAfterClose();
+            } catch (e) {
+                console.error('Error during handleCloseFile:', e);
             }
         }
         // Allow native side to trigger a save attempt. Resolves to true if saved.
