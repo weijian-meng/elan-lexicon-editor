@@ -114,13 +114,6 @@ function isCloseDialogShown() {
         const discardChangesBtn = document.getElementById('discardChangesBtn');
         const configBtn = document.getElementById('configBtn');
         const configDialog = document.getElementById('configDialog');
-        const cancelConfigBtn = document.getElementById('cancelConfigBtn');
-        const saveConfigBtn = document.getElementById('saveConfigBtn');
-        const configTabs = document.querySelectorAll('.config-tab');
-        const configSections = document.querySelectorAll('.config-section');
-        const fieldsTree = document.getElementById('fieldsTree');
-        const customFieldsList = document.getElementById('customFieldsList');
-        const addCustomFieldBtn = document.getElementById('addCustomFieldBtn');
         
         // Event Listeners
         newLexiconBtn.addEventListener('click', showNewLexiconDialog);
@@ -139,22 +132,11 @@ function isCloseDialogShown() {
         cancelNewLexiconBtn.addEventListener('click', hideNewLexiconDialog);
         createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
         discardChangesBtn.addEventListener('click', handleDiscardChanges);
-        configBtn.addEventListener('click', showConfigDialog);
-        cancelConfigBtn.addEventListener('click', hideConfigDialog);
-        saveConfigBtn.addEventListener('click', handleSaveConfig);
-        addCustomFieldBtn.addEventListener('click', handleAddCustomField);
+        configBtn.addEventListener('click', () => { if (window.ConfigDialog) window.ConfigDialog.show(); });
         
         console.log('All event listeners set up!');
         
-        configTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const targetTab = tab.dataset.tab;
-                configTabs.forEach(t => t.classList.remove('active'));
-                configSections.forEach(s => s.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(`${targetTab}Section`).classList.add('active');
-            });
-        });
+        // Config tabs are handled by ConfigDialog module
         
         // Initialize modular components
         if (window.LexiconTable) {
@@ -176,6 +158,16 @@ function isCloseDialogShown() {
                     } catch (e) {
                         console.error('Error in entry change handler:', e);
                     }
+                }
+            });
+        }
+
+        if (window.ConfigDialog) {
+            window.ConfigDialog.init({
+                getLexicon: () => lexicon,
+                onChange: () => {
+                    setIsModified(true);
+                    updateFileName();
                 }
             });
         }
@@ -590,255 +582,22 @@ function isCloseDialogShown() {
             }
         }
         
-        function showConfigDialog() {
-            if (!lexicon) {
-                alert('Please create or open a lexicon first.');
-                return;
-            }
-            
-            console.log('Lexicon header:', JSON.stringify(lexicon.header, null, 2)); // Debug log
-            
-            // Get the first header element since the header is an array
-            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
-            
-            // Populate information section
-            document.getElementById('configName').value = header.name?.[0] || '';
-            document.getElementById('configLanguage').value = header.language?.[0] || '';
-            document.getElementById('configDescription').value = header.description?.[0] || '';
-            document.getElementById('configAuthor').value = header.author?.[0] || '';
-            document.getElementById('configVersion').value = header.version?.[0] || '';
-            
-            // Populate fields tree
-            renderFieldsTree(header);
-            
-            // Populate custom fields
-            renderCustomFields(header);
-            
-            // Populate sort order
-            document.getElementById('sortOrder').value = header['sort-order']?.[0] || '';
-            
-            configDialog.classList.remove('hidden');
-        }
+        // Config dialog moved to ConfigDialog module
+        function showConfigDialog() { if (window.ConfigDialog) window.ConfigDialog.show(); }
         
-        function hideConfigDialog() {
-            configDialog.classList.add('hidden');
-        }
+        function hideConfigDialog() { if (window.ConfigDialog) window.ConfigDialog.hide(); }
         
-        function renderFieldsTree(header) {
-            fieldsTree.innerHTML = '';
-            
-            // Create root node for entry
-            const entryNode = createTreeItem('entry', 'root');
-            fieldsTree.appendChild(entryNode);
-            
-            // Add standard entry-level fields
-            const entryFields = ['lexical-unit', 'morph-type'];
-            entryFields.forEach(field => {
-                const fieldElement = createTreeItem(field, 'entry');
-                entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
-            });
-            
-            // Add sense node
-            const senseNode = createTreeItem('sense', 'entry');
-            entryNode.querySelector('.tree-item-children').appendChild(senseNode);
-            
-            // Add sense-level fields
-            const senseFields = ['grammatical-category', 'gloss'];
-            senseFields.forEach(field => {
-                const fieldElement = createTreeItem(field, 'sense');
-                senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
-            });
-            
-            // Add custom fields if they exist
-            if (header['custom-fields'] && header['custom-fields'][0]) {
-                const customFieldsContainer = header['custom-fields'][0];
-                
-                // Handle the case where field-spec is an array
-                if (Array.isArray(customFieldsContainer['field-spec'])) {
-                    customFieldsContainer['field-spec'].forEach(field => {
-                        if (field && field.$) {
-                            const fieldElement = createTreeItem(`${field.$.name} (custom)`, field.$.level || 'entry');
-                            if (field.$.level === 'entry' || !field.$.level) {
-                                entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
-                            } else if (field.$.level === 'sense') {
-                                senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
-                            }
-                        }
-                    });
-                } 
-                // Handle the case where field-spec is a single object
-                else if (customFieldsContainer['field-spec'] && customFieldsContainer['field-spec'].$) {
-                    const field = customFieldsContainer['field-spec'];
-                    const fieldElement = createTreeItem(`${field.$.name} (custom)`, field.$.level || 'entry');
-                    if (field.$.level === 'entry' || !field.$.level) {
-                        entryNode.querySelector('.tree-item-children').appendChild(fieldElement);
-                    } else if (field.$.level === 'sense') {
-                        senseNode.querySelector('.tree-item-children').appendChild(fieldElement);
-                    }
-                }
-            }
-        }
+        // renderFieldsTree moved to ConfigDialog module
         
-        function createTreeItem(name, level) {
-            const div = document.createElement('div');
-            div.className = 'tree-item';
-            
-            const content = document.createElement('div');
-            content.className = 'tree-item-content';
-            
-            const icon = document.createElement('span');
-            icon.className = 'tree-item-icon';
-            icon.onclick = () => {
-                const children = div.querySelector('.tree-item-children');
-                if (children) {
-                    children.style.display = children.style.display === 'none' ? 'block' : 'none';
-                    icon.textContent = children.style.display === 'none' ? '▶' : '▼';
-                }
-            };
-            
-            const label = document.createElement('span');
-            label.className = 'tree-item-label';
-            label.textContent = name;
-            
-            content.appendChild(icon);
-            content.appendChild(label);
-            div.appendChild(content);
-            
-            // Add children container if not a leaf node
-            if (level !== 'leaf') {
-                const children = document.createElement('div');
-                children.className = 'tree-item-children';
-                div.appendChild(children);
-            }
-            
-            return div;
-        }
+        // createTreeItem moved to ConfigDialog module
         
-        function renderCustomFields(header) {
-            customFieldsList.innerHTML = '';
-            
-            if (header['custom-fields'] && header['custom-fields'][0]) {
-                const customFieldsContainer = header['custom-fields'][0];
-                
-                // Handle the case where field-spec is an array
-                if (Array.isArray(customFieldsContainer['field-spec'])) {
-                    customFieldsContainer['field-spec'].forEach(field => {
-                        if (field && field.$) {
-                            const fieldElement = createCustomFieldElement({
-                                name: field.$.name || '',
-                                level: field.$.level || 'entry'
-                            });
-                            customFieldsList.appendChild(fieldElement);
-                        }
-                    });
-                } 
-                // Handle the case where field-spec is a single object
-                else if (customFieldsContainer['field-spec'] && customFieldsContainer['field-spec'].$) {
-                    const field = customFieldsContainer['field-spec'];
-                    const fieldElement = createCustomFieldElement({
-                        name: field.$.name || '',
-                        level: field.$.level || 'entry'
-                    });
-                    customFieldsList.appendChild(fieldElement);
-                }
-            }
-        }
+        // renderCustomFields moved to ConfigDialog module
         
-        function createCustomFieldElement(field) {
-            const div = document.createElement('div');
-            div.className = 'custom-field';
-            
-            const nameInput = document.createElement('input');
-            nameInput.type = 'text';
-            nameInput.value = field.name || '';
-            nameInput.placeholder = 'Field name';
-            
-            const levelSelect = document.createElement('select');
-            levelSelect.innerHTML = `
-                <option value="entry" ${field.level === 'entry' ? 'selected' : ''}>Entry</option>
-                <option value="sense" ${field.level === 'sense' ? 'selected' : ''}>Sense</option>
-            `;
-            
-            const removeButton = document.createElement('button');
-            removeButton.textContent = 'Remove';
-            removeButton.className = 'button danger';
-            removeButton.onclick = () => div.remove();
-            
-            div.appendChild(nameInput);
-            div.appendChild(levelSelect);
-            div.appendChild(removeButton);
-            
-            return div;
-        }
+        // createCustomFieldElement moved to ConfigDialog module
         
-        function handleAddCustomField() {
-            const fieldElement = createCustomFieldElement({ name: '', level: 'entry' });
-            customFieldsList.appendChild(fieldElement);
-        }
+        // handleAddCustomField moved to ConfigDialog module
         
-        function handleSaveConfig() {
-            // Get the first header element since the header is an array
-            const header = Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header;
-            
-            // Preserve existing header information and only update changed fields
-            const nameInput = document.getElementById('configName');
-            const languageInput = document.getElementById('configLanguage');
-            const descriptionInput = document.getElementById('configDescription');
-            const authorInput = document.getElementById('configAuthor');
-            const versionInput = document.getElementById('configVersion');
-            const sortOrderInput = document.getElementById('sortOrder');
-            
-            // Update only non-empty fields
-            if (nameInput.value) header.name = [nameInput.value];
-            if (languageInput.value) header.language = [languageInput.value];
-            if (descriptionInput.value) header.description = [descriptionInput.value];
-            if (authorInput.value) header.author = [authorInput.value];
-            if (versionInput.value) header.version = [versionInput.value];
-            if (sortOrderInput.value) header['sort-order'] = [sortOrderInput.value];
-            
-            // Get new field specs from the UI
-            const fieldSpecs = [];
-            customFieldsList.querySelectorAll('.custom-field').forEach(fieldElement => {
-                const nameInput = fieldElement.querySelector('input');
-                const levelSelect = fieldElement.querySelector('select');
-                
-                let fieldName = nameInput.value;
-                fieldName = fieldName.replace(/[^a-zA-Z0-9_]/g, '_');
-                
-                if (fieldName) {
-                    // Add an empty text node to ensure two-part syntax
-                    fieldSpecs.push({
-                        $: {
-                            name: fieldName,
-                            level: levelSelect.value
-                        },
-                        _: '' // Add empty content to force two-part syntax
-                    });
-                }
-            });
-            
-            // Initialize or update custom fields
-            if (!header['custom-fields']) {
-                header['custom-fields'] = [{}];
-            }
-            
-            if (!header['custom-fields'][0]) {
-                header['custom-fields'][0] = {};
-            }
-            
-            // Replace the field-spec array with our new field specs
-            if (fieldSpecs.length > 0) {
-                header['custom-fields'][0]['field-spec'] = fieldSpecs;
-            } else {
-                header['custom-fields'][0]['field-spec'] = [];
-            }
-        
-            console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2));
-            
-            setIsModified(true);
-            updateFileName();
-            hideConfigDialog();
-        }
+        // handleSaveConfig moved to ConfigDialog module
 
         // Override renderers to use componentized modules (defined in entryeditor.js and lexicontable.js)
         // These redefinitions take precedence over earlier function declarations.
