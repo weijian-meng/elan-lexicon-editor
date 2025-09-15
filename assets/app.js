@@ -134,7 +134,8 @@ function isCloseDialogShown() {
         });
         addEntryBtn.addEventListener('click', handleAddEntry);
         removeEntryBtn.addEventListener('click', handleRemoveEntry);
-        addSenseBtn.addEventListener('click', handleAddSense);
+        // Sense handling is delegated to EntryEditor module
+        // addSenseBtn.addEventListener('click', handleAddSense);
         cancelNewLexiconBtn.addEventListener('click', hideNewLexiconDialog);
         createNewLexiconBtn.addEventListener('click', handleCreateNewLexicon);
         discardChangesBtn.addEventListener('click', handleDiscardChanges);
@@ -155,6 +156,30 @@ function isCloseDialogShown() {
             });
         });
         
+        // Initialize modular components
+        if (window.LexiconTable) {
+            window.LexiconTable.init({
+                tbody: lexiconTableBody,
+                onSelect: (entry) => selectEntry(entry)
+            });
+        }
+        if (window.EntryEditor) {
+            window.EntryEditor.init({
+                getLexicon: () => lexicon,
+                onChange: () => {
+                    try {
+                        setIsModified(true);
+                        entryHasChanges = true;
+                        updateFileName();
+                        updateEntryStatus();
+                        renderLexiconTable();
+                    } catch (e) {
+                        console.error('Error in entry change handler:', e);
+                    }
+                }
+            });
+        }
+
         // Panel resizing functionality
         const panelResizer = document.getElementById('panelResizer');
         let isResizing = false;
@@ -1526,10 +1551,44 @@ function isCloseDialogShown() {
             } else {
                 header['custom-fields'][0]['field-spec'] = [];
             }
-            
+        
             console.log('Updated lexicon header:', JSON.stringify(lexicon.header, null, 2));
             
             setIsModified(true);
             updateFileName();
             hideConfigDialog();
+        }
+
+        // Override renderers to use componentized modules (defined in entryeditor.js and lexicontable.js)
+        // These redefinitions take precedence over earlier function declarations.
+        function renderLexiconTable() {
+            if (window.LexiconTable) {
+                const entries = (lexicon && Array.isArray(lexicon.entry)) ? lexicon.entry : [];
+                const selectedId = selectedEntry && selectedEntry.$ ? selectedEntry.$.id : null;
+                window.LexiconTable.render(entries, selectedId);
+                return;
+            }
+            // Fallback rendering
+            if (lexiconTableBody) lexiconTableBody.innerHTML = '';
+        }
+
+        function renderEntryForm() {
+            if (window.EntryEditor) {
+                window.EntryEditor.load(selectedEntry || null);
+                return;
+            }
+            // Fallback (no-op)
+        }
+
+        function clearEntryForm() {
+            selectedEntry = null;
+            if (window.EntryEditor) {
+                window.EntryEditor.clear();
+                return;
+            }
+            // Fallback
+            emptySelection.classList.remove('hidden');
+            entryDetails.classList.add('hidden');
+            const customFieldGroups = entryDetails.querySelectorAll('.custom-field-group');
+            customFieldGroups.forEach(group => group.remove());
         }
