@@ -57,7 +57,13 @@
             flex-direction: column;
             overflow: hidden;
             min-width: 300px; /* Minimum width for each panel */
-            width: 50%; /* Initial width */
+            width: 50%; /* Fallback initial width */
+        }
+        .main-content > .panel:first-of-type {
+            width: 66.666%;
+        }
+        .main-content > .panel:last-of-type {
+            width: 33.334%;
         }
         .panel-resizer {
             width: 8px;
