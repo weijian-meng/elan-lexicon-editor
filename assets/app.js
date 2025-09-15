@@ -174,6 +174,7 @@ function isCloseDialogShown() {
         if (window.LexiconTable) {
             window.LexiconTable.init({
                 tbody: lexiconTableBody,
+                headers: document.querySelectorAll('.table-header th'),
                 onSelect: (entry) => selectEntry(entry)
             });
         }
@@ -737,7 +738,9 @@ function isCloseDialogShown() {
             if (window.LexiconTable) {
                 const entries = (lexicon && Array.isArray(lexicon.entry)) ? lexicon.entry : [];
                 const selectedId = selectedEntry && selectedEntry.$ ? selectedEntry.$.id : null;
-                window.LexiconTable.render(entries, selectedId);
+                const header = lexicon && lexicon.header ? (Array.isArray(lexicon.header) ? lexicon.header[0] : lexicon.header) : null;
+                const sortOrder = header && header['sort-order'] && header['sort-order'][0] ? header['sort-order'][0] : '';
+                window.LexiconTable.render(entries, selectedId, { sortOrder });
                 return;
             }
             // Fallback rendering
