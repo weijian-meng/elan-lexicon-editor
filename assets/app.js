@@ -250,20 +250,22 @@ function isCloseDialogShown() {
         
         function handleMouseMove(e) {
             if (!isResizing) return;
-            
+
             const width = startWidth + (e.pageX - startX);
             const containerWidth = leftPanel.parentElement.offsetWidth;
-            
+            const resizerWidth = panelResizer ? panelResizer.offsetWidth : 0;
+
             // Calculate minimum widths (300px each)
             const minWidth = 300;
-            const maxWidth = containerWidth - minWidth;
-            
+            const availableWidth = containerWidth - resizerWidth;
+            const maxWidth = availableWidth - minWidth;
+
             // Constrain the width between min and max values
             const constrainedWidth = Math.min(Math.max(width, minWidth), maxWidth);
-            
+
             // Update panel widths
             leftPanel.style.width = `${constrainedWidth}px`;
-            rightPanel.style.width = `${containerWidth - constrainedWidth - 8}px`; // Subtract resizer width
+            rightPanel.style.width = `${availableWidth - constrainedWidth}px`;
         }
         
         function handleMouseUp() {
@@ -278,14 +280,36 @@ function isCloseDialogShown() {
         
         // Initialize panel widths
         function initializePanelWidths() {
-            const containerWidth = document.querySelector('.main-content').offsetWidth;
-            const leftPanel = document.querySelector('.panel');
-            const rightPanel = document.querySelector('.panel:last-child');
-            
-            // Set initial widths (50% each, accounting for resizer)
-            const panelWidth = (containerWidth - 8) / 2; // Subtract resizer width
-            leftPanel.style.width = `${panelWidth}px`;
-            rightPanel.style.width = `${panelWidth}px`;
+            const container = document.querySelector('.main-content');
+            const leftPanelEl = document.querySelector('.main-content > .panel');
+            const rightPanelEl = document.querySelector('.main-content > .panel:last-of-type');
+
+            if (!container || !leftPanelEl || !rightPanelEl) return;
+
+            const containerWidth = container.offsetWidth;
+            const resizerWidth = panelResizer ? panelResizer.offsetWidth : 0;
+            const availableWidth = containerWidth - resizerWidth;
+            if (availableWidth <= 0) return;
+
+            const minWidth = 300;
+
+            let leftWidth;
+            if (availableWidth < minWidth * 2) {
+                leftWidth = availableWidth / 2;
+            } else {
+                const preferred = availableWidth * (2 / 3);
+                leftWidth = Math.min(availableWidth - minWidth, Math.max(minWidth, preferred));
+            }
+
+            let rightWidth = availableWidth - leftWidth;
+            if (rightWidth < minWidth) {
+                rightWidth = minWidth;
+                leftWidth = Math.max(minWidth, availableWidth - rightWidth);
+                rightWidth = Math.max(minWidth, availableWidth - leftWidth);
+            }
+
+            leftPanelEl.style.width = `${leftWidth}px`;
+            rightPanelEl.style.width = `${rightWidth}px`;
         }
         
         // Call initializePanelWidths when the window loads

@@ -10,7 +10,14 @@ def main():
     api = Api()
     base_dir = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
     html_path = os.path.join(base_dir, 'index.html')
-    window = webview.create_window('ELAN Lexicon Editor', html_path, js_api=api)
+    window = webview.create_window(
+        'ELAN Lexicon Editor',
+        html_path,
+        js_api=api,
+        width=1280,
+        height=900,
+        min_size=(1024, 720),
+    )
 
     # Bind close handlers (JS modal + native fallback)
     bind_close_handlers(window, api)
@@ -20,4 +27,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
