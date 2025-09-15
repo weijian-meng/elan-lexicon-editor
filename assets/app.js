@@ -172,6 +172,13 @@ function isCloseDialogShown() {
             });
         }
 
+        if (window.DiffViewer) {
+            window.DiffViewer.init({
+                getLexicon: () => lexicon,
+                getCurrentFile: () => currentFile,
+            });
+        }
+
         // Panel resizing functionality
         const panelResizer = document.getElementById('panelResizer');
         let isResizing = false;
