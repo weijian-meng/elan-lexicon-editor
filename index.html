@@ -49,9 +49,10 @@
                     </div>
                 </div>
                 <div class="panel-footer">
+                    <button class="button" id="configBtn">Lexicon Info</button>
+                    <button class="button" id="displayOptionsBtn">Display Options</button>
                     <button class="button" id="addEntryBtn">Add Entry</button>
                     <button class="button danger" id="removeEntryBtn">Remove Entry</button>
-                    <button class="button" id="configBtn">Configure</button>
                 </div>
             </div>
             
@@ -199,6 +200,42 @@
         </div>
     </div>
 
+    <div id="displayOptionsDialog" class="dialog-overlay hidden">
+        <div class="dialog" style="max-width: 520px; width: 90%;">
+            <div class="dialog-header">
+                <h2>Display Options</h2>
+            </div>
+            <div class="config-tabs">
+                <button class="config-tab active" data-tab="displayColumns">Columns</button>
+                <button class="config-tab" data-tab="displayEntries">Entries</button>
+            </div>
+            <div id="displayColumnsSection" class="config-section active">
+                <div class="form-group">
+                    <label>Select the fields to show in the table</label>
+                    <div id="displayColumnsList" class="display-options-list">
+                        <!-- Column checkboxes populated dynamically -->
+                    </div>
+                    <div id="displayColumnsError" class="display-options-error" style="display: none;">Select at least one field.</div>
+                </div>
+            </div>
+            <div id="displayEntriesSection" class="config-section">
+                <div class="form-group">
+                    <label for="displayExpandToggle">Expand entries containing multiple variants or senses</label>
+                    <div class="display-options-toggle">
+                        <input type="checkbox" id="displayExpandToggle" />
+                        <span class="hint">Show each variant and sense on a separate line. (Collapsed view uses "|")</span>
+                    </div>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="button" id="displayOptionsCancelBtn">Cancel</button>
+                <span style="flex: 1 1 auto;"></span>
+                <button class="button" id="displayOptionsRestoreBtn">Restore Defaults</button>
+                <button class="button" id="displayOptionsApplyBtn">Apply</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Close Confirmation Modal (in-app) -->
     <div id="closeConfirmModal" class="modal" style="display: none;">
         <div class="modal-content">
@@ -284,6 +321,7 @@
     <script src="assets/entryeditor.js"></script>
     <script src="assets/configdialog.js"></script>
     <script src="assets/diffviewer.js"></script>
+    <script src="assets/displayoptions.js"></script>
     <script src="assets/app.js"></script>
 </body>
 </html> 
