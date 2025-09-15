@@ -16,6 +16,7 @@
                 <button class="toolbar-button" id="newLexiconBtn">New Lexicon</button>
                 <button class="toolbar-button" id="openFileBtn">Open</button>
                 <button class="toolbar-button" id="saveFileBtn">Save</button>
+                <button class="toolbar-button" id="diffBtn">Diff</button>
             </div>
         </div>
         
@@ -213,9 +214,38 @@
         </div>
     </div>
 
+    <!-- Diff Dialog -->
+    <div id="diffDialog" class="dialog-overlay hidden">
+        <div class="dialog" style="max-width: 800px; width: 90%;">
+            <div class="dialog-header">
+                <h2>Review Changes (Semantic Diff)</h2>
+            </div>
+            <div class="form-group">
+                <label>Compare</label>
+                <div>
+                    <label><input type="radio" name="diffMode" value="working-vs-disk" checked /> Working (in editor) vs Last Saved (disk)</label>
+                </div>
+                <div>
+                    <label><input type="radio" name="diffMode" value="working-vs-head" /> Working (in editor) vs Last Commit (git HEAD)</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="diffIgnoreTimestamps" checked /> Ignore timestamps (dateModified)</label>
+            </div>
+            <div class="form-group" style="display:flex; gap: 8px;">
+                <button class="button" id="diffRunBtn">Compute Diff</button>
+                <button class="button" id="diffCloseBtn">Close</button>
+            </div>
+            <div class="form-group" style="max-height: 50vh; overflow: auto;">
+                <div id="diffResults"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="assets/lexicontable.js"></script>
     <script src="assets/entryeditor.js"></script>
     <script src="assets/configdialog.js"></script>
+    <script src="assets/diffviewer.js"></script>
     <script src="assets/app.js"></script>
 </body>
 </html> 
