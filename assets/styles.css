@@ -180,6 +180,10 @@
         .lexicon-table td:last-child {
             border-right: none;
         }
+        .lexicon-table tbody[data-view-mode="expanded"] td {
+            white-space: pre-line;
+            text-overflow: clip;
+        }
         .lexicon-table tr:last-child td {
             border-bottom: none;
         }
@@ -203,6 +207,35 @@
         }
         .button.danger {
             background-color: #d32f2f;
+        }
+        .display-options-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .display-options-list label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: normal;
+        }
+        .display-options-list input[type="checkbox"] {
+            margin: 0;
+        }
+        .display-options-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .display-options-toggle .hint {
+            font-size: 0.9em;
+            color: #555;
+        }
+        .display-options-error {
+            margin-top: 6px;
+            color: #d32f2f;
+            font-size: 0.9em;
         }
         .entry-form {
             display: flex;
