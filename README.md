@@ -63,6 +63,12 @@ Notes:
 - `main.py` resolves `index.html` from `sys._MEIPASS` when bundled, so packaged apps find resources correctly.
 - The serializer emits `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` and includes ELAN schema namespaces for interoperability.
 
+### GitHub Actions builds
+
+- The `Build desktop binaries` workflow packages macOS, Windows, and Linux builds using the shared PyInstaller spec.
+- It runs on demand (`workflow_dispatch`) or when pushing tags that match `v*`.
+- Each job uploads a zip archive (e.g. `elan-lexicon-editor-macos.zip`) that contains the OS-specific bundle from `dist/`.
+
 ## License
 
 ISC

@@ -3,6 +3,7 @@
 block_cipher = None
 
 import os
+import sys
 
 # When executing a .spec with PyInstaller, __file__ may be undefined.
 # Use the current working directory as the project root.
@@ -17,6 +18,12 @@ hiddenimports = [
     'xmltodict',
     'webview',
 ]
+
+is_macos = sys.platform == 'darwin'
+is_windows = sys.platform.startswith('win')
+
+icon_windows = os.path.join(project_dir, 'assets', 'app.ico')
+icon_macos = os.path.join(project_dir, 'assets', 'app.icns')
 
 a = Analysis(
     ['main.py'],
@@ -47,6 +54,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
+    icon=icon_windows if is_windows and os.path.exists(icon_windows) else None,
 )
 
 coll = COLLECT(
@@ -59,11 +67,10 @@ coll = COLLECT(
     name='ELAN Lexicon Editor'
 )
 
-icon_path = os.path.join(project_dir, 'assets', 'app.icns')
-
-app = BUNDLE(
-    coll,
-    name='ELAN Lexicon Editor.app',
-    icon=icon_path if os.path.exists(icon_path) else None,
-    bundle_identifier='com.yourdomain.elan-lexicon-editor',
-)
+if is_macos:
+    app = BUNDLE(
+        coll,
+        name='ELAN Lexicon Editor.app',
+        icon=icon_macos if os.path.exists(icon_macos) else None,
+        bundle_identifier='com.yourdomain.elan-lexicon-editor',
+    )
