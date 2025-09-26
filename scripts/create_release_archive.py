@@ -31,14 +31,14 @@ def build_archive(source: pathlib.Path, destination: pathlib.Path) -> None:
 
                 arcname = file_path.relative_to(base)
 
-                if file_path.is_dir():
-                    continue
-
                 if file_path.is_symlink():
                     info = zipfile.ZipInfo(str(arcname))
                     info.create_system = 3  # marks as Unix
                     info.external_attr = 0o120777 << 16  # symlink with 0777 perms
                     zf.writestr(info, os.readlink(file_path))
+                    continue
+
+                if file_path.is_dir():
                     continue
 
                 zf.write(file_path, arcname)
