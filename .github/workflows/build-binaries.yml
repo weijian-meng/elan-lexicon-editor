@@ -18,28 +18,24 @@ jobs:
             dist_target: "dist/ELAN Lexicon Editor.app"
             extra_packages: "pyobjc-core pyobjc-framework-WebKit"
             gui_backend: cocoa
-            target_arch: arm64
           - os: macos-13
             python_version: '3.11'
             archive_name: elan-lexicon-editor-macos-x86_64.zip
             dist_target: "dist/ELAN Lexicon Editor.app"
             extra_packages: "pyobjc-core pyobjc-framework-WebKit"
             gui_backend: cocoa
-            target_arch: x86_64
           - os: windows-latest
             python_version: '3.11'
             archive_name: elan-lexicon-editor-windows.zip
             dist_target: "dist/ELAN Lexicon Editor"
             extra_packages: ""
             gui_backend: ""
-            target_arch: ""
           - os: ubuntu-latest
             python_version: '3.11'
             archive_name: elan-lexicon-editor-linux.zip
             dist_target: "dist/ELAN Lexicon Editor"
             extra_packages: "pywebview[qt] PyQt5"
             gui_backend: qt
-            target_arch: ""
     runs-on: ${{ matrix.os }}
     env:
       PYWEBVIEW_GUI: ${{ matrix.gui_backend }}
@@ -66,12 +62,7 @@ jobs:
       - name: Build binary
         shell: bash
         run: |
-          TARGET_ARCH="${{ matrix.target_arch }}"
-          if [ -n "$TARGET_ARCH" ]; then
-            pyinstaller elan_lexicon_editor.spec --noconfirm --clean --target-arch "$TARGET_ARCH"
-          else
-            pyinstaller elan_lexicon_editor.spec --noconfirm --clean
-          fi
+          pyinstaller elan_lexicon_editor.spec --noconfirm --clean
 
       - name: Create archive
         shell: bash
