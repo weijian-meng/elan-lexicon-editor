@@ -7,8 +7,97 @@
   // DOM refs
   let refs = {};
   let selectedEntry = null;
+  const AUTOCOMPLETE_IDS = {
+    morphType: 'morphTypeOptions',
+    grammaticalCategory: 'grammaticalCategoryOptions',
+  };
+  const datalistRefs = {};
 
   function $(id) { return document.getElementById(id); }
+
+  // Ensure there is a datalist element for the given id
+  function ensureDatalist(id) {
+    if (datalistRefs[id]) return datalistRefs[id];
+    const dl = document.createElement('datalist');
+    dl.id = id;
+    document.body.appendChild(dl);
+    datalistRefs[id] = dl;
+    return dl;
+  }
+
+  // Replace the contents of a datalist with the provided values
+  function setDatalistOptions(dl, values) {
+    if (!dl) return;
+    dl.innerHTML = '';
+    values.forEach((val) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      dl.appendChild(opt);
+    });
+  }
+
+  function attachAutocomplete(input, datalistId) {
+    if (!input) return;
+    ensureDatalist(datalistId);
+    input.setAttribute('list', datalistId);
+    input.setAttribute('autocomplete', 'off');
+  }
+
+  function collectEntryFieldValues(fieldName) {
+    const lexicon = getLexicon ? getLexicon() : null;
+    if (!lexicon || !Array.isArray(lexicon.entry)) return [];
+    const values = new Set();
+    lexicon.entry.forEach((entry) => {
+      const fieldVal = entry && entry[fieldName];
+      if (Array.isArray(fieldVal)) {
+        fieldVal.forEach((v) => {
+          const text = typeof v === 'string' ? v : (v && v._) || '';
+          const normalized = text.trim();
+          if (normalized) values.add(normalized);
+        });
+      } else if (typeof fieldVal === 'string') {
+        const normalized = fieldVal.trim();
+        if (normalized) values.add(normalized);
+      }
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }
+
+  function collectSenseFieldValues(fieldName) {
+    const lexicon = getLexicon ? getLexicon() : null;
+    if (!lexicon || !Array.isArray(lexicon.entry)) return [];
+    const values = new Set();
+    lexicon.entry.forEach((entry) => {
+      const senses = entry && Array.isArray(entry.sense) ? entry.sense : [];
+      senses.forEach((sense) => {
+        const fieldVal = sense && sense[fieldName];
+        if (Array.isArray(fieldVal)) {
+          fieldVal.forEach((v) => {
+            const text = typeof v === 'string' ? v : (v && v._) || '';
+            const normalized = text.trim();
+            if (normalized) values.add(normalized);
+          });
+        } else if (typeof fieldVal === 'string') {
+          const normalized = fieldVal.trim();
+          if (normalized) values.add(normalized);
+        }
+      });
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }
+
+  // Refresh the shared datalists so morph-type and grammatical-category inputs can suggest existing values
+  function refreshAutocompleteOptions() {
+    const morphOptions = collectEntryFieldValues('morph-type');
+    const morphDatalist = ensureDatalist(AUTOCOMPLETE_IDS.morphType);
+    setDatalistOptions(morphDatalist, morphOptions);
+
+    const gramOptions = collectSenseFieldValues('grammatical-category');
+    const gramDatalist = ensureDatalist(AUTOCOMPLETE_IDS.grammaticalCategory);
+    setDatalistOptions(gramDatalist, gramOptions);
+
+    attachAutocomplete(refs.morphTypeInput, AUTOCOMPLETE_IDS.morphType);
+  }
 
   function init(options) {
     getLexicon = options && typeof options.getLexicon === 'function' ? options.getLexicon : null;
@@ -29,6 +118,9 @@
 
     if (refs.addSenseBtn) refs.addSenseBtn.onclick = handleAddSense;
     if (refs.addVariantBtn) refs.addVariantBtn.onclick = handleAddVariant;
+
+    ensureDatalist(AUTOCOMPLETE_IDS.morphType);
+    ensureDatalist(AUTOCOMPLETE_IDS.grammaticalCategory);
   }
 
   function updateEntryHeading() {
@@ -156,6 +248,7 @@
     // Update the heading when lexical unit changes
     updateEntryHeading();
     markChanged();
+    refreshAutocompleteOptions();
   }
 
   function renderCustomEntryFields() {
@@ -436,9 +529,12 @@
     if (refs.emptySelection) refs.emptySelection.classList.add('hidden');
     if (refs.entryDetails) refs.entryDetails.classList.remove('hidden');
 
+    refreshAutocompleteOptions();
+
     // Standard fields
     refs.lexicalUnitInput.value = (selectedEntry['lexical-unit'] && selectedEntry['lexical-unit'][0]) || '';
     refs.morphTypeInput.value = (selectedEntry['morph-type'] && selectedEntry['morph-type'][0]) || '';
+    attachAutocomplete(refs.morphTypeInput, AUTOCOMPLETE_IDS.morphType);
     refs.entryIdInput.value = (selectedEntry.$ && selectedEntry.$.id) || '';
     refs.dateCreatedInput.value = (selectedEntry.$ && selectedEntry.$.dateCreated) || '';
     refs.dateModifiedInput.value = (selectedEntry.$ && selectedEntry.$.dateModified) || '';
@@ -518,6 +614,7 @@
       grammaticalCategoryInput.type = 'text';
       grammaticalCategoryInput.className = 'grammatical-category';
       grammaticalCategoryInput.value = (sense['grammatical-category'] && sense['grammatical-category'][0]) || '';
+      attachAutocomplete(grammaticalCategoryInput, AUTOCOMPLETE_IDS.grammaticalCategory);
       grammaticalCategoryInput.onchange = updateEntryFromForm;
       grammaticalCategoryGroup.appendChild(grammaticalCategoryLabel);
       grammaticalCategoryGroup.appendChild(grammaticalCategoryInput);
