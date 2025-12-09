@@ -52,7 +52,8 @@
         lastPayload = buildDiffPayload();
         if (!lastPayload) return;
         const opts = buildDiffOptions();
-        const diff = await window.pywebview.api.diff(lastPayload.left, lastPayload.right, opts);
+        const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+        const diff = await invoke('diff', { left: lastPayload.left, right: lastPayload.right, options: opts });
         renderResults(diff);
       } catch (e) {
         renderError(e && e.message ? e.message : String(e));
@@ -272,64 +273,96 @@
       out.textContent = 'No differences or failed to compute diff.';
       return;
     }
+
+    // Controls check
+    const leftType = (document.getElementById('diffLeftSource') || {}).value;
+    const rightType = (document.getElementById('diffRightSource') || {}).value;
+    const allowed = rightType === 'working' && (leftType === 'disk' || leftType === 'head');
+
+    // Summary
     const { summary, entries } = diff;
     const sum = document.createElement('div');
     sum.className = 'diff-summary';
-    sum.textContent = `Added: ${summary.entries_added}  Removed: ${summary.entries_removed}  Modified: ${summary.entries_modified}`;
+    sum.innerHTML = `
+        <div class="diff-stat added">Added: ${summary.entries_added}</div>
+        <div class="diff-stat removed">Removed: ${summary.entries_removed}</div>
+        <div class="diff-stat modified">Modified: ${summary.entries_modified}</div>
+    `;
     out.appendChild(sum);
+
+    if (!allowed) {
+      const warning = document.createElement('div');
+      warning.style.marginBottom = '16px';
+      warning.style.color = '#856404';
+      warning.style.background = '#fff3cd';
+      warning.style.padding = '8px';
+      warning.style.borderRadius = '4px';
+      warning.textContent = 'Note: Restore/merge actions are disabled. To enable them, set "Compare" to Disk/HEAD and "vs" to Working.';
+      out.appendChild(warning);
+    }
 
     const section = document.createElement('div');
     section.className = 'diff-section';
 
-    const controlsInfo = document.createElement('div');
-    const leftType = (document.getElementById('diffLeftSource') || {}).value;
-    const rightType = (document.getElementById('diffRightSource') || {}).value;
-    const allowed = rightType === 'working' && (leftType === 'disk' || leftType === 'head');
-    controlsInfo.style.margin = '6px 0 12px';
-    controlsInfo.style.fontSize = '12px';
-    controlsInfo.textContent = allowed ? 'Actions enabled: apply changes to Working (in editor) to match Left (basis).' : 'Actions disabled for this combination.';
-    section.appendChild(controlsInfo);
+    // Helper to create a table row
+    const createRow = (label, oldVal, newVal) => {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = label;
+      const tdOld = document.createElement('td');
+      tdOld.className = 'diff-val-old';
+      tdOld.textContent = oldVal || 'null';
+      if (!oldVal) tdOld.classList.add('diff-null');
+
+      const tdNew = document.createElement('td');
+      tdNew.className = 'diff-val-new';
+      tdNew.textContent = newVal || 'null';
+      if (!newVal) tdNew.classList.add('diff-null');
+
+      tr.appendChild(th);
+      tr.appendChild(tdOld);
+      tr.appendChild(tdNew);
+      return tr;
+    };
 
     // Added entries
     if (entries.added && entries.added.length) {
       const h = document.createElement('h4');
-      h.textContent = 'Added Entries';
+      h.textContent = 'Added Entries (in Right)';
       section.appendChild(h);
-      const ul = document.createElement('ul');
       entries.added.forEach((id) => {
-        const li = document.createElement('li');
-        li.textContent = id + ' ';
-        const btn = document.createElement('button');
-        btn.textContent = 'Delete (match Left)';
-        btn.className = 'button';
-        btn.disabled = !allowed;
-        btn.style.marginLeft = '8px';
-        btn.onclick = async () => applyDeleteEntry(id, leftType);
-        li.appendChild(btn);
-        ul.appendChild(li);
+        const card = document.createElement('div');
+        card.className = 'diff-card';
+        card.innerHTML = `
+            <div class="diff-card-header">
+                <span class="diff-card-title">${id} <span class="diff-tag added">Added</span></span>
+                <div class="diff-card-actions">
+                    <button class="button small" ${!allowed ? 'disabled' : ''} onclick="window.DiffViewer.actions.deleteEntry('${id}', '${leftType}')">Delete</button>
+                </div>
+            </div>
+        `;
+        section.appendChild(card);
       });
-      section.appendChild(ul);
     }
 
     // Removed entries
     if (entries.removed && entries.removed.length) {
       const h = document.createElement('h4');
-      h.textContent = 'Removed Entries';
+      h.textContent = 'Removed Entries (missing in Right)';
       section.appendChild(h);
-      const ul = document.createElement('ul');
       entries.removed.forEach((id) => {
-        const li = document.createElement('li');
-        li.textContent = id + ' ';
-        const btn = document.createElement('button');
-        btn.textContent = 'Restore from Left';
-        btn.className = 'button';
-        btn.disabled = !allowed;
-        btn.style.marginLeft = '8px';
-        btn.onclick = async () => applyRestoreEntry(id, leftType);
-        li.appendChild(btn);
-        ul.appendChild(li);
+        const card = document.createElement('div');
+        card.className = 'diff-card';
+        card.innerHTML = `
+            <div class="diff-card-header">
+                <span class="diff-card-title">${id} <span class="diff-tag removed">Removed</span></span>
+                <div class="diff-card-actions">
+                    <button class="button small" ${!allowed ? 'disabled' : ''} onclick="window.DiffViewer.actions.restoreEntry('${id}', '${leftType}')">Restore</button>
+                </div>
+            </div>
+        `;
+        section.appendChild(card);
       });
-      section.appendChild(ul);
     }
 
     // Modified entries
@@ -337,129 +370,110 @@
       const h = document.createElement('h4');
       h.textContent = 'Modified Entries';
       section.appendChild(h);
-      entries.modified.forEach((m) => section.appendChild(renderModifiedEntry(m, allowed, leftType)));
+
+      entries.modified.forEach((m) => {
+        const card = document.createElement('div');
+        card.className = 'diff-card';
+
+        const header = document.createElement('div');
+        header.className = 'diff-card-header';
+        const title = document.createElement('span');
+        title.className = 'diff-card-title';
+        title.textContent = `${m.id} ${m.lexical_unit ? '(' + m.lexical_unit + ')' : ''}`;
+
+        const actions = document.createElement('div');
+        actions.className = 'diff-card-actions';
+        const restoreBtn = document.createElement('button');
+        restoreBtn.className = 'button small';
+        restoreBtn.textContent = 'Restore Full Entry';
+        restoreBtn.disabled = !allowed;
+        restoreBtn.onclick = () => window.DiffViewer.actions.restoreEntry(m.id, leftType);
+        actions.appendChild(restoreBtn);
+
+        header.appendChild(title);
+        header.appendChild(actions);
+        card.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'diff-card-body';
+
+        // Fields table
+        if (m.fields && m.fields.length) {
+          const table = document.createElement('table');
+          table.className = 'diff-table';
+          m.fields.forEach(f => {
+            if (f.kind === 'variants') {
+              table.appendChild(createRow('Variants', JSON.stringify(f.before), JSON.stringify(f.after)));
+            } else {
+              table.appendChild(createRow(f.name, f.before, f.after));
+            }
+          });
+          body.appendChild(table);
+        }
+
+        // Senses
+        if (m.senses) {
+          const s = m.senses;
+
+          if (s.added && s.added.length) {
+            s.added.forEach(sid => {
+              const block = document.createElement('div');
+              block.className = 'diff-sense-block';
+              block.innerHTML = `
+                        <div class="diff-sense-header">
+                            <span>Sense ${sid} <span class="diff-tag added">Added</span></span>
+                            <button class="button small" ${!allowed ? 'disabled' : ''} onclick="window.DiffViewer.actions.deleteSense('${m.id}', '${sid}', '${leftType}')">Delete</button>
+                        </div>
+                      `;
+              body.appendChild(block);
+            });
+          }
+
+          if (s.removed && s.removed.length) {
+            s.removed.forEach(sid => {
+              const block = document.createElement('div');
+              block.className = 'diff-sense-block';
+              block.innerHTML = `
+                        <div class="diff-sense-header">
+                            <span>Sense ${sid} <span class="diff-tag removed">Removed</span></span>
+                            <button class="button small" ${!allowed ? 'disabled' : ''} onclick="window.DiffViewer.actions.restoreSense('${m.id}', '${sid}', '${leftType}')">Restore</button>
+                        </div>
+                      `;
+              body.appendChild(block);
+            });
+          }
+
+          if (s.modified && s.modified.length) {
+            s.modified.forEach(sm => {
+              const block = document.createElement('div');
+              block.className = 'diff-sense-block';
+
+              const sheader = document.createElement('div');
+              sheader.className = 'diff-sense-header';
+              sheader.innerHTML = `
+                        <span>Sense ${sm.id} <span class="diff-tag" style="background:#fff3bf;color:#f08c00">Modified</span></span>
+                        <button class="button small" ${!allowed ? 'disabled' : ''} onclick="window.DiffViewer.actions.restoreSense('${m.id}', '${sm.id}', '${leftType}')">Restore</button>
+                      `;
+              block.appendChild(sheader);
+
+              const table = document.createElement('table');
+              table.className = 'diff-table';
+              sm.changes.forEach(c => {
+                table.appendChild(createRow(c.name, c.before, c.after));
+              });
+              block.appendChild(table);
+
+              body.appendChild(block);
+            });
+          }
+        }
+
+        card.appendChild(body);
+        section.appendChild(card);
+      });
     }
 
     out.appendChild(section);
-  }
-
-  function renderModifiedEntry(m, allowed, leftType) {
-    const wrap = document.createElement('div');
-    wrap.className = 'diff-entry';
-    const title = document.createElement('div');
-    title.className = 'diff-entry-title';
-    title.textContent = `Entry ${m.id} ${m.lexical_unit ? '(' + m.lexical_unit + ')' : ''}`;
-    wrap.appendChild(title);
-
-    const buttons = document.createElement('div');
-    const btnEntry = document.createElement('button');
-    btnEntry.textContent = 'Restore Entry from Left';
-    btnEntry.className = 'button';
-    btnEntry.disabled = !allowed;
-    btnEntry.style.margin = '4px 0 8px';
-    btnEntry.onclick = async () => applyRestoreEntry(m.id, leftType);
-    buttons.appendChild(btnEntry);
-    wrap.appendChild(buttons);
-
-    if (m.fields && m.fields.length) {
-      const h = document.createElement('div');
-      h.className = 'diff-subtitle';
-      h.textContent = 'Fields';
-      wrap.appendChild(h);
-      const ul = document.createElement('ul');
-      m.fields.forEach((f) => {
-        const li = document.createElement('li');
-        if (f.kind === 'variants') {
-          li.textContent = `variants: ${JSON.stringify(f.before)} -> ${JSON.stringify(f.after)}`;
-        } else {
-          li.textContent = `${f.name}: ${f.before} -> ${f.after}`;
-        }
-        ul.appendChild(li);
-      });
-      wrap.appendChild(ul);
-    }
-
-    if (m.senses) {
-      const s = m.senses;
-      const h = document.createElement('div');
-      h.className = 'diff-subtitle';
-      h.textContent = 'Senses';
-      wrap.appendChild(h);
-      if (s.reordered) {
-        const p = document.createElement('div');
-        p.textContent = 'Senses reordered';
-        wrap.appendChild(p);
-      }
-      if (s.added && s.added.length) {
-        const block = document.createElement('div');
-        const title = document.createElement('div');
-        title.textContent = 'Added senses:';
-        block.appendChild(title);
-        const ul = document.createElement('ul');
-        s.added.forEach((sid) => {
-          const li = document.createElement('li');
-          li.textContent = sid + ' ';
-          const btn = document.createElement('button');
-          btn.textContent = 'Delete sense';
-          btn.className = 'button';
-          btn.disabled = !allowed;
-          btn.style.marginLeft = '8px';
-          btn.onclick = async () => applyDeleteSense(m.id, sid, leftType);
-          li.appendChild(btn);
-          ul.appendChild(li);
-        });
-        block.appendChild(ul);
-        wrap.appendChild(block);
-      }
-      if (s.removed && s.removed.length) {
-        const block = document.createElement('div');
-        const title = document.createElement('div');
-        title.textContent = 'Removed senses:';
-        block.appendChild(title);
-        const ul = document.createElement('ul');
-        s.removed.forEach((sid) => {
-          const li = document.createElement('li');
-          li.textContent = sid + ' ';
-          const btn = document.createElement('button');
-          btn.textContent = 'Restore sense from Left';
-          btn.className = 'button';
-          btn.disabled = !allowed;
-          btn.style.marginLeft = '8px';
-          btn.onclick = async () => applyRestoreSense(m.id, sid, leftType);
-          ul.appendChild(li);
-          li.appendChild(btn);
-        });
-        block.appendChild(ul);
-        wrap.appendChild(block);
-      }
-      if (s.modified && s.modified.length) {
-        const list = document.createElement('div');
-        s.modified.forEach((sm) => {
-          const item = document.createElement('div');
-          item.className = 'diff-sense';
-          const head = document.createElement('div');
-          head.textContent = `Sense ${sm.id}`;
-          item.appendChild(head);
-          const ul = document.createElement('ul');
-          sm.changes.forEach((c) => {
-            const li = document.createElement('li');
-            li.textContent = `${c.name}: ${c.before} -> ${c.after}`;
-            ul.appendChild(li);
-          });
-          item.appendChild(ul);
-          const btn = document.createElement('button');
-          btn.textContent = 'Restore Sense from Left';
-          btn.className = 'button';
-          btn.disabled = !allowed;
-          btn.style.margin = '4px 0 8px';
-          btn.onclick = async () => applyRestoreSense(m.id, sm.id, leftType);
-          item.appendChild(btn);
-          list.appendChild(item);
-        });
-        wrap.appendChild(list);
-      }
-    }
-    return wrap;
   }
 
   async function ensureAllowed(leftType) {
@@ -483,7 +497,8 @@
     if (!(await ensureAllowed(leftType))) return;
     if (!lastPayload) return;
     try {
-      const left = await window.pywebview.api.get_lexicon_from_source(lastPayload.left);
+      const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+      const left = await invoke('get_lexicon_from_source', { source: lastPayload.left });
       const leftLex = (left && left.lexicon) || {};
       const { idx: lidx, entry: lentry } = findEntryById(leftLex, entryId);
       if (!lentry) { alert('Baseline entry not found'); return; }
@@ -499,7 +514,7 @@
       if (onChange) onChange();
       // Recompute diff with current field selection
       const opts = buildDiffOptions();
-      const diff = await window.pywebview.api.diff(lastPayload.left, lastPayload.right, opts);
+      const diff = await invoke('diff', { left: lastPayload.left, right: lastPayload.right, options: opts });
       renderResults(diff);
     } catch (e) {
       renderError(e && e.message ? e.message : String(e));
@@ -514,7 +529,8 @@
     if (idx >= 0) rightLex.entry.splice(idx, 1);
     if (onChange) onChange();
     const opts = buildDiffOptions();
-    const diff = await window.pywebview.api.diff(lastPayload.left, lastPayload.right, opts);
+    const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+    const diff = await invoke('diff', { left: lastPayload.left, right: lastPayload.right, options: opts });
     renderResults(diff);
   }
 
@@ -522,7 +538,8 @@
     if (!(await ensureAllowed(leftType))) return;
     if (!lastPayload) return;
     try {
-      const left = await window.pywebview.api.get_lexicon_from_source(lastPayload.left);
+      const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+      const left = await invoke('get_lexicon_from_source', { source: lastPayload.left });
       const leftLex = (left && left.lexicon) || {};
       const { entry: lentry } = findEntryById(leftLex, entryId);
       if (!lentry) { alert('Baseline entry not found'); return; }
@@ -541,7 +558,7 @@
       if (sidx >= 0) rentry.sense[sidx] = clone; else rentry.sense.push(clone);
       if (onChange) onChange();
       const opts = buildDiffOptions();
-      const diff = await window.pywebview.api.diff(lastPayload.left, lastPayload.right, opts);
+      const diff = await invoke('diff', { left: lastPayload.left, right: lastPayload.right, options: opts });
       renderResults(diff);
     } catch (e) {
       renderError(e && e.message ? e.message : String(e));
@@ -561,9 +578,20 @@
     rentry.$.dateModified = now;
     if (onChange) onChange();
     const opts = buildDiffOptions();
-    const diff = await window.pywebview.api.diff(lastPayload.left, lastPayload.right, opts);
+    const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core.invoke : window.__TAURI__.invoke;
+    const diff = await invoke('diff', { left: lastPayload.left, right: lastPayload.right, options: opts });
     renderResults(diff);
   }
 
-  window.DiffViewer = { init, show, hide };
+  window.DiffViewer = {
+    init,
+    show,
+    hide,
+    actions: {
+      restoreEntry: applyRestoreEntry,
+      deleteEntry: applyDeleteEntry,
+      restoreSense: applyRestoreSense,
+      deleteSense: applyDeleteSense
+    }
+  };
 })();
