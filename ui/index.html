@@ -271,34 +271,32 @@
     <!-- Diff Dialog -->
     <div id="diffDialog" class="dialog-overlay hidden">
         <div class="dialog" style="max-width: 1100px; width: 90%; height: 80vh;">
-            <div class="dialog-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="dialog-header">
                 <h2>Review Changes</h2>
-                <button class="button small" id="diffHeaderCloseBtn"
-                    onclick="document.getElementById('diffDialog').classList.add('hidden')"
-                    style="background:transparent; color:#666; border:1px solid #ddd;">✕</button>
             </div>
 
             <div class="diff-toolbar">
                 <div class="diff-toolbar-group">
-                    <label style="font-weight:500;">Compare</label>
-                    <select id="diffLeftSource" class="custom-field-input" style="width:auto;">
+                    <label style="font-weight:600; font-size:1.1em; color:#333;">Compare:</label>
+                    <select id="diffLeftSource" class="custom-field-input" style="min-width:180px;">
                         <option value="disk">Last Saved (disk)</option>
                         <option value="head">Last Commit (git HEAD)</option>
                         <option value="working">Working (in editor)</option>
                     </select>
-                    <span>vs</span>
-                    <select id="diffRightSource" class="custom-field-input" style="width:auto;">
+                    <span style="color:#666; font-weight:500;">vs</span>
+                    <select id="diffRightSource" class="custom-field-input" style="min-width:180px;">
                         <option value="working" selected>Working (in editor)</option>
                         <option value="disk">Last Saved (disk)</option>
                         <option value="head">Last Commit (git HEAD)</option>
                     </select>
                 </div>
-                <!-- Spacer -->
+
                 <div class="diff-toolbar-spacer"></div>
-                <!-- Actions -->
+
                 <div class="diff-toolbar-group">
-                    <button class="button" id="diffSelectFieldsBtn" style="background:#6c757d;">Fields…</button>
-                    <button class="button" id="diffRunBtn">Run Comparison</button>
+                    <button class="button" id="diffSelectFieldsBtn"
+                        style="background:#fff; color:#333; border:1px solid #ced4da;">Select Fields…</button>
+                    <button class="button" id="diffRunBtn" style="font-weight:500;">Run Comparison</button>
                 </div>
             </div>
 
