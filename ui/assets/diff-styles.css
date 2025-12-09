@@ -1,0 +1,128 @@
+
+/* Diff Viewer Styles */
+.diff-summary {
+    background: #f8f9fa;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-weight: 500;
+    display: flex;
+    gap: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.diff-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.diff-stat.added { color: #28a745; }
+.diff-stat.removed { color: #dc3545; }
+.diff-stat.modified { color: #fd7e14; }
+
+.diff-section h4 {
+    margin: 24px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e9ecef;
+    color: #495057;
+}
+
+.diff-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+}
+
+.diff-card-header {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.diff-card-title {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: #343a40;
+}
+
+.diff-card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.diff-card-body {
+    padding: 16px;
+}
+
+.diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+    font-size: 0.95em;
+}
+
+.diff-table th, .diff-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f3f5;
+    text-align: left;
+    vertical-align: top;
+}
+
+.diff-table th {
+    background: #fff;
+    color: #868e96;
+    font-weight: 500;
+    width: 20%;
+}
+
+.diff-val-old {
+    background-color: #fff5f5;
+    color: #c92a2a;
+    text-decoration: line-through;
+}
+
+.diff-val-new {
+    background-color: #ebfbee;
+    color: #2b8a3e;
+}
+
+.diff-arrow {
+    color: #adb5bd;
+    padding: 0 8px;
+}
+
+.diff-sense-block {
+    margin-top: 16px;
+    padding-left: 16px;
+    border-left: 3px solid #e9ecef;
+}
+
+.diff-sense-header {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.diff-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.diff-tag.added { background: #d3f9d8; color: #2b8a3e; }
+.diff-tag.removed { background: #ffe3e3; color: #c92a2a; }
+
+.diff-null {
+    color: #adb5bd;
+    font-style: italic;
+}
