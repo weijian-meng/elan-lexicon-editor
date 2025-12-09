@@ -1,7 +1,7 @@
 {
   "name": "elan-lexicon-editor",
   "version": "1.0.0",
-  "description": "Python + [pywebview](https://pywebview.flowrl.com/) application for creating and editing XML lexicon files following the ELAN lexicon schema.",
+  "description": "Rust + Tauri application for creating and editing XML lexicon files following the ELAN lexicon schema.",
   "main": "index.js",
   "scripts": {
     "tauri": "tauri",

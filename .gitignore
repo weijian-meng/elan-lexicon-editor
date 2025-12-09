@@ -5,23 +5,10 @@ yarn-debug.log
 yarn-error.log
 
 # Build output
+# Build output
 dist/
 build/
 
-# Python caches and envs
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-env/
-# Keep PyInstaller spec tracked; do not ignore *.spec
-
-# pyenv local version file
-.python-version
 
 # IDE and editor files
 .idea/
