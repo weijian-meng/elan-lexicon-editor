@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::xml_utils::parse_xml;
 
 #[derive(serde::Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct DiffOptions {
     pub ignore_timestamps: Option<bool>,
     pub include_entry_fields: Option<Vec<String>>,
@@ -56,7 +57,7 @@ pub fn resolve_source(src: &Source) -> Result<Value, String> {
             let top = String::from_utf8_lossy(&top_output.stdout).trim().to_string();
             
             // Rel path
-            let rel_path = pathdiff::diff_paths(path, &top).ok_or("Could not determine relative path")?; 
+            let _rel_path = pathdiff::diff_paths(path, &top).ok_or("Could not determine relative path")?; 
             // Note: pathdiff might not be available, let's just do manual strip if possible or assume logic.
             // Actually, we can just use the provided path if it's correct for git show usually, 
             // but git show REVISION:PATH expects PATH relative to root.
