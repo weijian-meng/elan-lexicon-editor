@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "elan-lexicon-editor",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.weijianmeng.elan-lexicon-editor",
   "build": {
     "frontendDist": "../ui"
   },
