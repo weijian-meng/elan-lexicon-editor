@@ -174,7 +174,7 @@ fn add_child(map: &mut Map<String, Value>, name: &str, value: Value, forced_list
 }
 
 pub fn build_xml(json: &Value) -> Result<String, XmlError> {
-    let mut writer = Writer::new(Cursor::new(Vec::new()));
+    let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 4);
     
     match json {
         Value::Object(map) => {
@@ -193,6 +193,43 @@ pub fn build_xml(json: &Value) -> Result<String, XmlError> {
     
     let decl = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
     Ok(format!("{}\n{}", decl, s))
+}
+
+fn get_child_order(name: &str) -> Option<&'static [&'static str]> {
+    match name {
+        "lexicon" => Some(&["header", "entry"]),
+        "header" => Some(&[
+            "name",
+            "language",
+            "description",
+            "author",
+            "version",
+            "custom-fields",
+            "field-configs",
+            "sort-order",
+        ]),
+        "entry" => Some(&[
+            "lexical-unit",
+            "citation",
+            "morph-type",
+            "variant",
+            "phonetic",
+            "note",
+            "field",
+            "sense",
+        ]),
+        "sense" => Some(&[
+            "grammatical-category",
+            "gloss",
+            "definition",
+            "example",
+            "comment",
+            "internal-note",
+            "field",
+        ]),
+        "example" => Some(&["text", "translation", "source-ref", "fragment-ref"]),
+        _ => None,
+    }
 }
 
 fn write_element<W: std::io::Write>(writer: &mut Writer<W>, name: &str, value: &Value) -> Result<(), XmlError> {
@@ -226,8 +263,20 @@ fn write_element<W: std::io::Write>(writer: &mut Writer<W>, name: &str, value: &
                      writer.write_event(Event::Text(BytesText::new(text)))?;
                  }
                  
+                 let order = get_child_order(name);
+                 let mut written_keys = HashSet::new();
+
+                 if let Some(keys) = order {
+                     for key in keys {
+                         if let Some(val) = map.get(*key) {
+                             write_element(writer, key, val)?;
+                             written_keys.insert(key.to_string());
+                         }
+                     }
+                 }
+
                  for (k, v) in map {
-                     if k != ATTR_PREFIX && k != CDATA_KEY {
+                     if k != ATTR_PREFIX && k != CDATA_KEY && !written_keys.contains(k) {
                          write_element(writer, k, v)?;
                      }
                  }
@@ -280,7 +329,7 @@ mod tests {
         let res = parse_xml(xml).unwrap();
         assert_eq!(res, json!({
             "root": {
-                "$id": "1",
+                "$": { "id": "1" },
                 "_": "hello"
             }
         }));
@@ -317,5 +366,43 @@ mod tests {
         let xml = "<root><empty/></root>";
         let res = parse_xml(xml).unwrap();
         assert_eq!(res, json!({"root": {"empty": null}}));
+    }
+
+    #[test]
+    fn test_formatted_xml() {
+        let json = json!({
+            "root": {
+                "child": {
+                    "_": "text"
+                }
+            }
+        });
+        let build = build_xml(&json).unwrap();
+        // Check for newlines and indentation
+        assert!(build.contains("\n    <child>"));
+    }
+
+    #[test]
+    fn test_ordering() {
+        // "sense" children order: grammatical-category, gloss, definition...
+        // Alphabetical: definition, gloss, grammatical-category
+        // We want strict order.
+        let json = json!({
+            "sense": {
+                "definition": "def",
+                "grammatical-category": "cat",
+                "gloss": "gloss"
+            }
+        });
+        
+        let build = build_xml(&json).unwrap();
+        
+        let grammar_pos = build.find("<grammatical-category>").unwrap();
+        let gloss_pos = build.find("<gloss>").unwrap();
+        let def_pos = build.find("<definition>").unwrap();
+        
+        // Expected: cat < gloss < def
+        assert!(grammar_pos < gloss_pos, "grammatical-category should be before gloss");
+        assert!(gloss_pos < def_pos, "gloss should be before definition");
     }
 }
