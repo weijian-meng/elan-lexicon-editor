@@ -1,7 +1,7 @@
 // Main application controller
 
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import * as LexiconTable from "./LexiconTable";
 import * as EntryEditor from "./EntryEditor";
 import * as ConfigDialog from "./ConfigDialog";
@@ -20,6 +20,83 @@ let isModified = false;
 let selectedEntry: LexiconEntry | null = null;
 // Idempotent init flag (modal DOM is static; listeners attach once)
 let initialized = false;
+
+// UI refs for enabling/disabling actions
+const actionRefs: {
+    newLexiconBtn?: HTMLButtonElement | null;
+    openBtn?: HTMLButtonElement | null;
+    closeBtn?: HTMLButtonElement | null;
+    saveBtn?: HTMLButtonElement | null;
+    diffBtn?: HTMLButtonElement | null;
+    configBtn?: HTMLButtonElement | null;
+    displayOptionsBtn?: HTMLButtonElement | null;
+    addEntryBtn?: HTMLButtonElement | null;
+    removeEntryBtn?: HTMLButtonElement | null;
+    emptySelectionText?: HTMLElement | null;
+} = {};
+
+function getBasename(path: string): string {
+    const parts = path.split(/[\\/]/);
+    return parts[parts.length - 1] || path;
+}
+
+function updateFileLabelAndTitle() {
+    const baseTitle = "ELAN Lexicon Editor";
+    const filenameEl = document.getElementById("fileName");
+
+    let fileLabel = "No file open";
+    let titleSuffix = "";
+
+    if (currentFilePath) {
+        fileLabel = getBasename(currentFilePath);
+        titleSuffix = currentFilePath;
+    } else if (currentLexicon) {
+        fileLabel = "Untitled";
+        titleSuffix = "Untitled";
+    }
+
+    if (filenameEl) {
+        filenameEl.textContent = fileLabel;
+    }
+
+    const modifiedMarker = isModified ? " *" : "";
+    const windowTitle = titleSuffix
+        ? `${baseTitle} — ${titleSuffix}${modifiedMarker}`
+        : `${baseTitle}${modifiedMarker}`;
+
+    getCurrentWebviewWindow()
+        .setTitle(windowTitle)
+        .catch(() => {
+            document.title = windowTitle;
+        });
+}
+
+function updateActionAvailability() {
+    const hasLexicon = !!currentLexicon;
+    const hasSelection = !!selectedEntry;
+
+    if (actionRefs.closeBtn) actionRefs.closeBtn.disabled = !hasLexicon;
+    if (actionRefs.saveBtn) actionRefs.saveBtn.disabled = !hasLexicon;
+    if (actionRefs.diffBtn) actionRefs.diffBtn.disabled = !hasLexicon;
+
+    if (actionRefs.configBtn) actionRefs.configBtn.disabled = !hasLexicon;
+    if (actionRefs.displayOptionsBtn)
+        actionRefs.displayOptionsBtn.disabled = !hasLexicon;
+    if (actionRefs.addEntryBtn) actionRefs.addEntryBtn.disabled = !hasLexicon;
+    if (actionRefs.removeEntryBtn)
+        actionRefs.removeEntryBtn.disabled = !hasLexicon || !hasSelection;
+
+    if (actionRefs.emptySelectionText) {
+        actionRefs.emptySelectionText.textContent = hasLexicon
+            ? "Select an entry to edit or create a new one."
+            : "";
+    }
+
+    const appEl = document.getElementById("app");
+    if (appEl) appEl.classList.toggle("no-lexicon", !hasLexicon);
+
+    updateFileLabelAndTitle();
+}
 
 // Initialize on DOMContentLoaded to ensure elements exist
 document.addEventListener("DOMContentLoaded", () => {
@@ -71,16 +148,27 @@ function init() {
     });
 
     // Global event listeners
-    const newLexiconBtn = document.getElementById("newLexiconBtn");
-    const openBtn = document.getElementById("openFileBtn");
-    const closeBtn = document.getElementById("closeFileBtn");
-    const saveBtn = document.getElementById("saveFileBtn");
-    const diffBtn = document.getElementById("diffBtn");
+    const newLexiconBtn = document.getElementById("newLexiconBtn") as HTMLButtonElement | null;
+    const openBtn = document.getElementById("openFileBtn") as HTMLButtonElement | null;
+    const closeBtn = document.getElementById("closeFileBtn") as HTMLButtonElement | null;
+    const saveBtn = document.getElementById("saveFileBtn") as HTMLButtonElement | null;
+    const diffBtn = document.getElementById("diffBtn") as HTMLButtonElement | null;
 
-    const configBtn = document.getElementById("configBtn");
-    const displayOptionsBtn = document.getElementById("displayOptionsBtn");
-    const addEntryBtn = document.getElementById("addEntryBtn");
-    const removeEntryBtn = document.getElementById("removeEntryBtn");
+    const configBtn = document.getElementById("configBtn") as HTMLButtonElement | null;
+    const displayOptionsBtn = document.getElementById("displayOptionsBtn") as HTMLButtonElement | null;
+    const addEntryBtn = document.getElementById("addEntryBtn") as HTMLButtonElement | null;
+    const removeEntryBtn = document.getElementById("removeEntryBtn") as HTMLButtonElement | null;
+
+    actionRefs.newLexiconBtn = newLexiconBtn;
+    actionRefs.openBtn = openBtn;
+    actionRefs.closeBtn = closeBtn;
+    actionRefs.saveBtn = saveBtn;
+    actionRefs.diffBtn = diffBtn;
+    actionRefs.configBtn = configBtn;
+    actionRefs.displayOptionsBtn = displayOptionsBtn;
+    actionRefs.addEntryBtn = addEntryBtn;
+    actionRefs.removeEntryBtn = removeEntryBtn;
+    actionRefs.emptySelectionText = document.getElementById("emptySelectionText");
 
     const searchInput = document.getElementById("searchInput");
 
@@ -136,6 +224,9 @@ function init() {
         });
     }
 
+    // Initial landing state: only New/Open enabled
+    updateActionAvailability();
+
     // Debugging helpers
     window.addEventListener("beforeunload", (e) => {
         console.log("Page is unloading/reloading");
@@ -153,6 +244,8 @@ function handleEntrySelect(entry: LexiconEntry) {
         const row = document.querySelector(`tr[data-entry-id="${id}"]`);
         if (row) row.classList.add("selected");
     }
+
+    updateActionAvailability();
 }
 
 function handleLexiconChange() {
@@ -171,6 +264,8 @@ function handleLexiconChange() {
                     : "",
         }
     );
+
+    updateActionAvailability();
 }
 
 function setIsModified(modified: boolean) {
@@ -187,6 +282,9 @@ function setIsModified(modified: boolean) {
     invoke("set_modified", { modified }).catch((e) =>
         console.error("Failed to set window modified state:", e)
     );
+
+    // Save button may be gated in future; keep availability in sync.
+    updateActionAvailability();
 }
 
 function handleNewLexicon() {
@@ -228,12 +326,11 @@ function handleCreateNewLexicon() {
     EntryEditor.clear();
     setIsModified(true);
 
-    const filenameEl = document.getElementById("fileName");
-    if (filenameEl) filenameEl.textContent = "Untitled";
-
     LexiconTable.render(currentLexicon.entry, null, { sortOrder: "" });
 
     handleCancelNewLexicon();
+
+    updateActionAvailability();
 }
 
 async function handleCloseFile() {
@@ -256,10 +353,9 @@ function performCloseFile() {
     EntryEditor.clear();
     setIsModified(false);
 
-    const filenameEl = document.getElementById("fileName");
-    if (filenameEl) filenameEl.textContent = "No file open";
-
     LexiconTable.render([], null, { sortOrder: "" });
+
+    updateActionAvailability();
 }
 
 async function handleRemoveEntry() {
@@ -272,6 +368,8 @@ async function handleRemoveEntry() {
         selectedEntry = null;
         EntryEditor.clear();
         handleLexiconChange();
+
+        updateActionAvailability();
     }
 }
 
@@ -310,15 +408,14 @@ async function handleOpenFile() {
             EntryEditor.clear();
             setIsModified(false);
 
-            const filenameEl = document.getElementById("fileName");
-            if (filenameEl) filenameEl.textContent = filePath;
-
             LexiconTable.render(currentLexicon.entry, null, {
                 sortOrder:
                     currentLexicon.header && currentLexicon.header["sort-order"]
                         ? currentLexicon.header["sort-order"][0]
                         : "",
             });
+
+            updateActionAvailability();
         } else {
             alert("Invalid file format: Could not find <lexicon> tag.");
         }
@@ -352,8 +449,6 @@ async function handleSaveFile(): Promise<boolean> {
         });
 
         setIsModified(false);
-        const filenameEl = document.getElementById("fileName");
-        if (filenameEl) filenameEl.textContent = currentFilePath;
         alert("File saved!");
         return true;
     } catch (e) {
