@@ -140,9 +140,9 @@ export function init(options: EntryEditorOptions) {
   refs.dateModifiedInput = $("dateModified");
   refs.variantsContainer = $("variantsContainer");
   refs.addVariantBtn = $("addVariantBtn");
-  refs.entryHeader = refs.entryDetails
-    ? refs.entryDetails.querySelector(".entry-header h2")
-    : null;
+  refs.entryCustomFieldsContainer = $("entryCustomFieldsContainer");
+  refs.entryHeader = $("entryHeaderTitle");
+  refs.entryHeaderBar = $("entryHeaderBar");
   refs.entryStatus = $("entryStatus");
   refs.discardChangesBtn = $("discardChangesBtn");
 
@@ -223,11 +223,15 @@ export function clear() {
   selectedEntry = null;
   if (refs.emptySelection) refs.emptySelection.classList.remove("hidden");
   if (refs.entryDetails) refs.entryDetails.classList.add("hidden");
+  if (refs.entryHeaderBar) refs.entryHeaderBar.classList.add("hidden");
   // Remove any custom field elements
   if (refs.entryDetails) {
     refs.entryDetails
       .querySelectorAll(".custom-field-group")
       .forEach((g) => g.remove());
+  }
+  if (refs.entryCustomFieldsContainer) {
+    refs.entryCustomFieldsContainer.innerHTML = "";
   }
   if (refs.sensesContainer) refs.sensesContainer.innerHTML = "";
   if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
@@ -315,11 +319,13 @@ function updateEntryFromForm() {
     if (!selectedEntry?.sense) return;
     const gci = senseEl.querySelector(".grammatical-category") as HTMLInputElement;
     const gi = senseEl.querySelector(".gloss") as HTMLInputElement;
+    const di = senseEl.querySelector(".definition") as HTMLInputElement;
     if (!selectedEntry.sense[index]) return;
     selectedEntry.sense[index]["grammatical-category"] = [
       gci ? gci.value : "",
     ];
     selectedEntry.sense[index].gloss = [gi ? gi.value : ""];
+    selectedEntry.sense[index]["definition"] = [di ? di.value : ""];
 
     // Custom sense fields
     senseEl
@@ -361,10 +367,16 @@ function renderCustomEntryFields() {
   if (!lexicon || !lexicon.header || !selectedEntry || !refs.entryDetails)
     return;
 
+  const container =
+    (refs.entryCustomFieldsContainer as HTMLElement) || refs.entryDetails;
+  if (!container) return;
+  container.innerHTML = "";
+
   const header = Array.isArray(lexicon.header)
     ? lexicon.header[0]
     : lexicon.header;
   if (!header["custom-fields"] || !header["custom-fields"][0]) return;
+
   const customFieldsContainer = header["custom-fields"][0];
   let customFields: any[] = [];
 
@@ -380,180 +392,97 @@ function renderCustomEntryFields() {
     customFields = [customFieldsContainer["field-spec"]];
   }
 
+  const getFieldArray = (value: any) => {
+    if (Array.isArray(value)) return value;
+    if (value) return [value];
+    return [];
+  };
+
+  const getEntryValue = (fieldName: string, customName?: string) => {
+    if (!selectedEntry) return "";
+    if (fieldName === "field" && customName) {
+      const fields = getFieldArray(selectedEntry.field);
+      const found = fields.find(
+        (f: any) => f && f.$ && f.$.name === customName
+      );
+      return (found && found._) || "";
+    }
+    const val = selectedEntry[fieldName];
+    if (Array.isArray(val)) return val[0] || "";
+    if (typeof val === "string") return val;
+    return "";
+  };
+
+  const appendField = (
+    displayName: string,
+    fieldName: string,
+    value: string,
+    customName?: string
+  ) => {
+    const id = `custom_${displayName}`;
+    const existing = container.querySelector(`#${id}`);
+    if (existing) return;
+
+    const formGroup = document.createElement("div");
+    formGroup.className = "form-group custom-field-group";
+    formGroup.dataset.fieldName = displayName;
+
+    const label = document.createElement("label");
+    label.textContent = displayName.replace(/_/g, " ");
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.id = id;
+    input.className = "custom-field-input";
+    input.dataset.fieldName = fieldName;
+    if (customName) input.dataset.customName = customName;
+    input.value = value || "";
+    input.oninput = () => updateEntryFromForm();
+
+    formGroup.appendChild(label);
+    formGroup.appendChild(input);
+    container.appendChild(formGroup);
+  };
+
   customFields.forEach((field) => {
     if (!field || !field.$) return;
     const fieldName = field.$.name;
     if (!fieldName) return;
 
-    if (!refs.entryDetails) return;
-    const existingField = refs.entryDetails.querySelector(
-      `#custom_${fieldName}`
-    );
-    if (existingField) return;
-
-    const formGroup = document.createElement("div");
-    formGroup.className = "form-group custom-field-group";
-
-    const label = document.createElement("label");
-    label.textContent = fieldName.replace(/_/g, " ");
-
-    const input = document.createElement("input");
-    input.type = "text";
-    input.id = `custom_${fieldName}`;
-    input.className = "custom-field-input";
-    input.dataset.fieldName = fieldName;
-
     if (fieldName === "field") {
       const customName = (field.$ && field.$.nameAttr) || field.$.name;
-      input.dataset.customName = customName;
-    }
-
-    input.value =
-      selectedEntry![fieldName] && selectedEntry![fieldName].length > 0
-        ? selectedEntry![fieldName][0]
-        : "";
-    input.oninput = () => updateEntryFromForm();
-
-    formGroup.appendChild(label);
-    formGroup.appendChild(input);
-
-    const sensesContainer = refs.sensesContainer;
-    const addSenseBtn = refs.addSenseBtn;
-    if (addSenseBtn) {
-      refs.entryDetails.insertBefore(formGroup, addSenseBtn);
-    } else if (sensesContainer) {
-      refs.entryDetails.insertBefore(
-        formGroup,
-        sensesContainer.nextSibling
+      const displayName = customName || fieldName;
+      appendField(
+        displayName,
+        "field",
+        getEntryValue("field", displayName),
+        displayName
       );
-    } else {
-      const idField = refs.entryDetails.querySelector("#entryId");
-      if (idField && idField.closest(".form-group")) {
-        refs.entryDetails.insertBefore(
-          formGroup,
-          idField.closest(".form-group")
-        );
-      } else {
-        refs.entryDetails.appendChild(formGroup);
-      }
+      return;
     }
+
+    appendField(fieldName, fieldName, getEntryValue(fieldName));
   });
 
-  // Add fields existing on entry not in header definition (excluding standard ones)
-  const standardFields = [
-    "$",
-    "lexical-unit",
-    "morph-type",
-    "sense",
-    "variant",
-  ];
+  const standardFields = ["$", "lexical-unit", "morph-type", "sense", "variant"];
   Object.keys(selectedEntry).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
-    if (!refs.entryDetails) return;
-    const existingField = refs.entryDetails.querySelector(`#custom_${key}`);
-    if (existingField) return;
     const isDefined = customFields.some((f) => f.$.name === key);
     if (isDefined) return;
-
-    const formGroup = document.createElement("div");
-    formGroup.className = "form-group custom-field-group";
-    formGroup.dataset.fieldName = key;
-
-    const label = document.createElement("label");
-    label.textContent = key.replace(/_/g, " ");
-
-    const input = document.createElement("input");
-    input.type = "text";
-    input.id = `custom_${key}`;
-    input.className = "custom-field-input";
-    input.dataset.fieldName = key;
-    input.value =
-      selectedEntry![key] && selectedEntry![key].length > 0
-        ? selectedEntry![key][0]
-        : "";
-    input.oninput = () => updateEntryFromForm();
-
-    formGroup.appendChild(label);
-    formGroup.appendChild(input);
-
-    const sensesContainer = refs.sensesContainer;
-    const addSenseBtn = refs.addSenseBtn;
-    if (addSenseBtn) {
-      refs.entryDetails.insertBefore(formGroup, addSenseBtn);
-    } else if (sensesContainer) {
-      refs.entryDetails.insertBefore(
-        formGroup,
-        sensesContainer.nextSibling
-      );
-    } else {
-      const idField = refs.entryDetails.querySelector("#entryId");
-      if (idField && idField.closest(".form-group")) {
-        refs.entryDetails.insertBefore(
-          formGroup,
-          idField.closest(".form-group")
-        );
-      } else {
-        refs.entryDetails.appendChild(formGroup);
-      }
-    }
+    appendField(key, key, getEntryValue(key));
   });
 
-  // field@name style
   if (selectedEntry.field) {
-    const fieldElements = Array.isArray(selectedEntry.field)
-      ? selectedEntry.field
-      : [selectedEntry.field];
+    const fieldElements = getFieldArray(selectedEntry.field);
     fieldElements.forEach((field: any) => {
       if (!field || !field.$ || !field.$.name) return;
       const fieldName = field.$.name;
-      if (!refs.entryDetails) return;
-      const existingField = refs.entryDetails.querySelector(
-        `#custom_${fieldName}`
+      const isDefined = customFields.some(
+        (f) => f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName
       );
-      if (existingField) return;
-      const isDefined = customFields.some((f) => f.$.name === fieldName);
       if (isDefined) return;
-
-      const formGroup = document.createElement("div");
-      formGroup.className = "form-group custom-field-group";
-      formGroup.dataset.fieldName = fieldName;
-
-      const label = document.createElement("label");
-      label.textContent = fieldName.replace(/_/g, " ");
-
-      const input = document.createElement("input");
-      input.type = "text";
-      input.id = `custom_${fieldName}`;
-      input.className = "custom-field-input";
-      input.dataset.fieldName = "field";
-      input.dataset.customName = fieldName;
-      input.value = field._ || "";
-      input.oninput = () => updateEntryFromForm();
-
-      formGroup.appendChild(label);
-      formGroup.appendChild(input);
-
-      const sensesContainer = refs.sensesContainer;
-      const addSenseBtn = refs.addSenseBtn;
-      if (addSenseBtn) {
-        refs.entryDetails.insertBefore(formGroup, addSenseBtn);
-      } else if (sensesContainer) {
-        refs.entryDetails.insertBefore(
-          formGroup,
-          sensesContainer.nextSibling
-        );
-      } else {
-        const idField = refs.entryDetails.querySelector("#entryId");
-        if (idField && idField.closest(".form-group")) {
-          refs.entryDetails.insertBefore(
-            formGroup,
-            idField.closest(".form-group")
-          );
-        } else {
-          refs.entryDetails.appendChild(formGroup);
-        }
-      }
+      appendField(fieldName, "field", field._ || "", fieldName);
     });
   }
 }
@@ -588,6 +517,7 @@ function renderCustomSenseFields(
     if (!field || !field.$) return;
     const fieldName = field.$.name;
     if (!fieldName) return;
+    if (fieldName === "definition") return;
 
     const formGroup = document.createElement("div");
     formGroup.className = "form-group custom-field-group";
@@ -620,7 +550,7 @@ function renderCustomSenseFields(
   });
 
   // Add ad-hoc fields on sense not in header
-  const standardFields = ["$", "grammatical-category", "gloss"];
+  const standardFields = ["$", "grammatical-category", "gloss", "definition"];
   Object.keys(sense).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
@@ -656,6 +586,7 @@ function renderCustomSenseFields(
     fieldElements.forEach((field: any) => {
       if (!field || !field.$ || !field.$.name) return;
       const fieldName = field.$.name;
+      if (fieldName === "definition") return;
       const isDefined = customFields.some((f) => f.$.name === fieldName);
       if (isDefined) return;
 
@@ -682,15 +613,33 @@ function renderCustomSenseFields(
   }
 }
 
+function buildSenseSummary(sense: LexiconSense) {
+  const grammaticalCategory =
+    (sense["grammatical-category"] &&
+      Array.isArray(sense["grammatical-category"]) &&
+      sense["grammatical-category"][0]) ||
+    "";
+  const gloss =
+    (sense.gloss && Array.isArray(sense.gloss) && sense.gloss[0]) || "";
+
+  const parts = [grammaticalCategory, gloss]
+    .map((p) => (p || "").toString().trim())
+    .filter((p) => p.length > 0);
+
+  return parts.length ? parts.join(" — ") : "No details";
+}
+
 function renderEntryForm() {
   if (!selectedEntry) {
     if (refs.emptySelection) refs.emptySelection.classList.remove("hidden");
     if (refs.entryDetails) refs.entryDetails.classList.add("hidden");
+    if (refs.entryHeaderBar) refs.entryHeaderBar.classList.add("hidden");
     return;
   }
 
   if (refs.emptySelection) refs.emptySelection.classList.add("hidden");
   if (refs.entryDetails) refs.entryDetails.classList.remove("hidden");
+  if (refs.entryHeaderBar) refs.entryHeaderBar.classList.remove("hidden");
 
   refreshAutocompleteOptions();
 
@@ -720,21 +669,18 @@ function renderEntryForm() {
     selectedEntry.variant.forEach((variant, index) => {
       const variantGroup = document.createElement("div");
       variantGroup.className = "variant-group";
-      variantGroup.style.display = "flex";
-      variantGroup.style.gap = "10px";
-      variantGroup.style.marginBottom = "10px";
 
       const variantInput = document.createElement("input");
       variantInput.type = "text";
       variantInput.value = variant;
       variantInput.className = "variant-input";
-      variantInput.style.flex = "1";
       variantInput.oninput = (e) =>
         handleVariantChange(index, (e.target as HTMLInputElement).value);
 
       const removeButton = document.createElement("button");
+      removeButton.type = "button";
       removeButton.textContent = "Remove";
-      removeButton.className = "button danger";
+      removeButton.className = "button danger small";
       removeButton.onclick = () => handleRemoveVariant(index);
 
       variantGroup.appendChild(variantInput);
@@ -751,13 +697,30 @@ function renderEntryForm() {
 
     const senseHeader = document.createElement("div");
     senseHeader.className = "sense-header";
+    senseHeader.tabIndex = 0;
+    senseHeader.setAttribute("role", "button");
 
-    const senseTitle = document.createElement("h3");
-    senseTitle.textContent = `Sense ${index + 1}`;
+    const headerLeft = document.createElement("div");
+    headerLeft.className = "sense-header-left";
+
+    const badge = document.createElement("span");
+    badge.className = "sense-badge";
+    badge.textContent = `Sense ${index + 1}`;
+
+    const summary = document.createElement("span");
+    summary.className = "sense-summary";
+    summary.textContent = buildSenseSummary(sense);
+
+    headerLeft.appendChild(badge);
+    headerLeft.appendChild(summary);
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "sense-actions";
 
     const removeButton = document.createElement("button");
+    removeButton.type = "button";
     removeButton.textContent = "Remove";
-    removeButton.className = "button danger";
+    removeButton.className = "button danger small sense-remove-btn";
     removeButton.disabled = (selectedEntry!.sense || []).length <= 1;
     removeButton.onclick = () => {
       selectedEntry!.sense = (selectedEntry!.sense || []).filter(
@@ -767,8 +730,43 @@ function renderEntryForm() {
       markChanged();
     };
 
-    senseHeader.appendChild(senseTitle);
-    senseHeader.appendChild(removeButton);
+    headerActions.appendChild(removeButton);
+    senseHeader.appendChild(headerLeft);
+    senseHeader.appendChild(headerActions);
+
+    const senseBody = document.createElement("div");
+    senseBody.className = "sense-body";
+
+    const expandedByDefault = index === 0;
+    if (!expandedByDefault) {
+      senseBody.hidden = true;
+      senseHeader.classList.add("collapsed");
+      senseHeader.setAttribute("aria-expanded", "false");
+    } else {
+      senseHeader.setAttribute("aria-expanded", "true");
+    }
+
+    const toggleSense = () => {
+      const isHidden = senseBody.hidden;
+      senseBody.hidden = !isHidden;
+      senseHeader.classList.toggle("collapsed", !isHidden);
+      senseHeader.setAttribute(
+        "aria-expanded",
+        isHidden ? "true" : "false"
+      );
+    };
+
+    senseHeader.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest(".sense-remove-btn")) return;
+      toggleSense();
+    });
+    senseHeader.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleSense();
+      }
+    });
 
     const senseIdGroup = document.createElement("div");
     senseIdGroup.className = "form-group";
@@ -784,7 +782,8 @@ function renderEntryForm() {
     const grammaticalCategoryGroup = document.createElement("div");
     grammaticalCategoryGroup.className = "form-group";
     const grammaticalCategoryLabel = document.createElement("label");
-    grammaticalCategoryLabel.textContent = "Grammatical Category";
+    grammaticalCategoryLabel.textContent = "Gram. Category";
+    grammaticalCategoryLabel.title = "Grammatical Category";
     const grammaticalCategoryInput = document.createElement("input");
     grammaticalCategoryInput.type = "text";
     grammaticalCategoryInput.className = "grammatical-category";
@@ -811,13 +810,37 @@ function renderEntryForm() {
     glossGroup.appendChild(glossLabel);
     glossGroup.appendChild(glossInput);
 
-    senseSection.appendChild(senseHeader);
-    senseSection.appendChild(senseIdGroup);
-    senseSection.appendChild(grammaticalCategoryGroup);
-    senseSection.appendChild(glossGroup);
+    const coreGrid = document.createElement("div");
+    coreGrid.className = "sense-core-grid";
+    coreGrid.appendChild(grammaticalCategoryGroup);
+    coreGrid.appendChild(glossGroup);
+
+    senseBody.appendChild(coreGrid);
+
+    const definitionGroup = document.createElement("div");
+    definitionGroup.className = "form-group";
+    const definitionLabel = document.createElement("label");
+    definitionLabel.textContent = "Definition";
+    const definitionInput = document.createElement("input");
+    definitionInput.type = "text";
+    definitionInput.className = "definition";
+    const definitionVal = (sense as any)["definition"];
+    definitionInput.value = Array.isArray(definitionVal)
+      ? definitionVal[0] || ""
+      : definitionVal || "";
+    definitionInput.oninput = updateEntryFromForm;
+    definitionGroup.appendChild(definitionLabel);
+    definitionGroup.appendChild(definitionInput);
+    senseBody.appendChild(definitionGroup);
 
     // Custom sense-level fields
-    renderCustomSenseFields(sense, senseSection, index);
+    renderCustomSenseFields(sense, senseBody, index);
+
+    // Sense metadata at the bottom
+    senseBody.appendChild(senseIdGroup);
+
+    senseSection.appendChild(senseHeader);
+    senseSection.appendChild(senseBody);
 
     refs.sensesContainer!.appendChild(senseSection);
   });
