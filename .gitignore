@@ -8,6 +8,10 @@ yarn-error.log
 dist/
 build/
 
+# Local lexicon test/debug files
+lexicon/*
+!lexicon/.gitkeep
+
 # IDE and editor files
 .idea/
 .vscode/
