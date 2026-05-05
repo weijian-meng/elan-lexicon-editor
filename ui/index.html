@@ -4,8 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>ELAN Lexicon Editor</title>
-    <link rel="stylesheet" href="assets/styles.css">
-    <link rel="stylesheet" href="assets/diff-styles.css">
     <style>
         .toolbar-button:disabled {
             opacity: .5;
@@ -59,76 +57,95 @@
                         </div>
                     </div>
                 </div>
-                <div class="panel-footer">
-                    <button class="button" id="configBtn">Lexicon Info</button>
-                    <button class="button" id="displayOptionsBtn">Display Options</button>
-                    <button class="button" id="addEntryBtn">Add Entry</button>
-                    <button class="button danger" id="removeEntryBtn">Remove Entry</button>
-                </div>
+	                <div class="panel-footer">
+	                    <button class="button" id="configBtn" title="Lexicon Info">Info</button>
+	                    <button class="button" id="displayOptionsBtn" title="Display Options">Options</button>
+	                    <button class="button" id="addEntryBtn" title="Add Entry">Add</button>
+	                    <button class="button danger" id="removeEntryBtn" title="Delete Selected Entry">Delete</button>
+	                </div>
             </div>
 
             <div class="panel-resizer" id="panelResizer"></div>
 
-            <div class="panel">
-                <div class="panel-content">
-                    <div class="entry-form" id="entryForm">
-                        <div id="emptySelection">
-                            <p>Select an entry to edit or create a new one</p>
-                        </div>
+	            <div class="panel">
+	                <div id="entryHeaderBar" class="entry-header hidden">
+	                    <div class="entry-header-left">
+	                        <h2 id="entryHeaderTitle">Entry Details</h2>
+	                        <span class="entry-status" id="entryStatus">No changes</span>
+	                    </div>
+	                </div>
+	                <div class="panel-content">
+		                    <div class="entry-form" id="entryForm">
+		                        <div id="emptySelection">
+		                            <p id="emptySelectionText"></p>
+		                        </div>
+		
+		                        <div id="entryDetails" class="hidden">
+		                            <div class="section-label">Entry</div>
+		                            <div class="entry-core-grid">
+		                                <div class="form-group">
+		                                    <label for="lexicalUnit">Lexical Unit</label>
+                                    <input type="text" id="lexicalUnit" />
+                                </div>
 
-                        <div id="entryDetails" class="hidden">
-                            <div class="entry-header">
-                                <h2>Entry Details</h2>
-                                <span class="entry-status" id="entryStatus">No changes</span>
+                                <div class="form-group">
+                                    <label for="morphType">Morph Type</label>
+                                    <input type="text" id="morphType" />
+                                </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="lexicalUnit">Lexical Unit</label>
-                                <input type="text" id="lexicalUnit" />
-                            </div>
-
-                            <div class="form-group">
-                                <label for="morphType">Morph Type</label>
-                                <input type="text" id="morphType" />
-                            </div>
-
-                            <div class="form-group">
-                                <label>Variants</label>
-                                <div id="variantsContainer">
+                            <div class="variants-section">
+                                <div class="section-header">
+                                    <div class="section-label">Variants</div>
+                                    <button class="button secondary small" id="addVariantBtn">Add Variant</button>
+                                </div>
+                                <div id="variantsContainer" class="variants-list">
                                     <!-- Variants will be added here -->
                                 </div>
-                                <button class="button" id="addVariantBtn">Add Variant</button>
                             </div>
 
-                            <div id="sensesContainer">
-                                <!-- Senses will be added here -->
+                            <div id="entryCustomFieldsContainer" class="entry-custom-fields">
+                                <!-- Entry-level custom fields inserted here -->
                             </div>
 
-                            <button class="button" id="addSenseBtn">Add Sense</button>
-
-                            <div class="form-group">
-                                <label>ID</label>
-                                <input type="text" id="entryId" disabled />
+                            <div class="senses-section">
+                                <div class="section-header">
+                                    <div class="section-label">Senses</div>
+                                    <button class="button small" id="addSenseBtn">Add Sense</button>
+                                </div>
+                                <div id="sensesContainer">
+                                    <!-- Senses will be added here -->
+                                </div>
                             </div>
 
-                            <div class="form-group">
-                                <label>Date Created</label>
-                                <input type="text" id="dateCreated" disabled />
-                            </div>
-
-                            <div class="form-group">
-                                <label>Date Modified</label>
-                                <input type="text" id="dateModified" disabled />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="panel-footer">
-                    <button class="button" id="discardChangesBtn" disabled>Discard Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
+	                            <details class="metadata-details">
+	                                <summary>Entry metadata</summary>
+	                                <div class="metadata-grid">
+	                                    <div class="form-group">
+	                                        <label>Date Created</label>
+	                                        <input type="text" id="dateCreated" disabled />
+	                                    </div>
+	
+	                                    <div class="form-group">
+	                                        <label>Date Modified</label>
+	                                        <input type="text" id="dateModified" disabled />
+	                                    </div>
+	
+	                                    <div class="form-group full-span">
+	                                        <label>ID</label>
+	                                        <input type="text" id="entryId" disabled />
+	                                    </div>
+	                                </div>
+		                            </details>
+		                        </div>
+	                    </div>
+	                </div>
+		                <div class="panel-footer">
+		                    <button class="button" id="discardChangesBtn" disabled title="Discard all changes to this entry">Undo</button>
+		                </div>
+	            </div>
+	        </div>
+	    </div>
 
     <div id="newLexiconDialog" class="dialog-overlay hidden">
         <div class="dialog">
@@ -338,12 +355,8 @@
         </div>
     </div>
 
-    <script src="assets/lexicontable.js"></script>
-    <script src="assets/entryeditor.js"></script>
-    <script src="assets/configdialog.js"></script>
-    <script src="assets/diffviewer.js"></script>
-    <script src="assets/displayoptions.js"></script>
-    <script src="assets/app.js"></script>
+    <!-- Module entry point -->
+    <script type="module" src="/src/main.ts"></script>
 </body>
 
 </html>

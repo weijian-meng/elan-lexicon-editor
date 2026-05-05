@@ -5,6 +5,7 @@
    2. [x] auto completion suggestio in certain fields: morph-type, gram-category for now
    4. button positions
 2. Diff view more readable 
+3. Add icons + tooltips for compact action labels (footer/toolbar)
 
 # Functional
 

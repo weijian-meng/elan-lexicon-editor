@@ -1,79 +1,49 @@
-name: Build desktop binaries
+name: Build desktop bundles
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-14
-            python_version: '3.11'
-            archive_name: elan-lexicon-editor-macos-arm64.zip
-            dist_target: "dist/ELAN Lexicon Editor.app"
-            extra_packages: "pyobjc-core pyobjc-framework-WebKit"
-            gui_backend: cocoa
-          - os: macos-13
-            python_version: '3.11'
-            archive_name: elan-lexicon-editor-macos-x86_64.zip
-            dist_target: "dist/ELAN Lexicon Editor.app"
-            extra_packages: "pyobjc-core pyobjc-framework-WebKit"
-            gui_backend: cocoa
-          - os: windows-latest
-            python_version: '3.11'
-            archive_name: elan-lexicon-editor-windows.zip
-            dist_target: "dist/ELAN Lexicon Editor"
-            extra_packages: ""
-            gui_backend: ""
-          - os: ubuntu-latest
-            python_version: '3.11'
-            archive_name: elan-lexicon-editor-linux.zip
-            dist_target: "dist/ELAN Lexicon Editor"
-            extra_packages: "pywebview[qt] PyQt5"
-            gui_backend: qt
-    runs-on: ${{ matrix.os }}
-    env:
-      PYWEBVIEW_GUI: ${{ matrix.gui_backend }}
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          python-version: ${{ matrix.python_version }}
+          node-version: 20
+          cache: npm
 
-      - name: Install dependencies
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install pyinstaller
-          extra_packages="${{ matrix.extra_packages }}"
-          if [ -n "${extra_packages}" ]; then
-            python -m pip install ${extra_packages}
-          fi
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Build binary
-        shell: bash
-        run: |
-          pyinstaller elan_lexicon_editor.spec --noconfirm --clean
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Create archive
-        shell: bash
-        run: |
-          mkdir -p artifacts
-          python scripts/create_release_archive.py \
-            --source "${{ matrix.dist_target }}" \
-            --destination "artifacts/${{ matrix.archive_name }}"
+      - name: Install npm deps
+        run: npm ci
 
-      - name: Upload artifact
+      - name: Build Tauri bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          args: build
+
+      - name: Upload bundles
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive_name }}
-          path: artifacts/${{ matrix.archive_name }}
+          name: tauri-bundles-${{ runner.os }}
+          path: src-tauri/target/release/bundle/**
