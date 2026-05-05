@@ -28,7 +28,7 @@ npm run dev
 npm run tauri dev
 ```
 
-- Sample lexicons live in `lexicon/` (e.g., `sample-lexicon.xml`).
+- The `lexicon/` directory includes the ELAN schema and a blank template only.
 - The front-end entry point is `ui/src/main.ts`; backend commands are in `src-tauri/src/main.rs`.
 
 ## Build and Package
@@ -56,13 +56,25 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 - `ui/src/ConfigDialog.ts` — header metadata and custom field specs
 - `src-tauri/src/xml_utils.rs` — XML parse/build (forced arrays, `$` attrs, `_` text, child ordering)
 - `src-tauri/src/diff_utils.rs` — canonicalization and diffing against disk/git/working objects
-- `lexicon/` — sample XMLs and schema/XSD
+- `lexicon/` — ELAN schema/XSD and blank template
 
 ## CI
 
 - Workflow: `.github/workflows/build-binaries.yml`
   - Trigger: manual or tags `v*`
-  - Builds Tauri bundles on macOS (arm64/x64), Windows, Linux; uploads artifacts from `src-tauri/target/release/bundle`
+  - Builds Tauri bundles on macOS, Windows, and Linux; uploads artifacts from `src-tauri/target/release/bundle`
+
+## Data Notice
+
+This repository intentionally does not include real lexicon data. Use
+`lexicon/template.xml` as a starting point for local testing, or open your own
+ELAN-compatible lexicon XML files.
+
+## AI Assistance
+
+Parts of this project were developed with assistance from AI coding tools,
+including Cursor, Claude, Antigravity, and OpenAI Codex. AI-generated
+suggestions were reviewed, edited, tested, and integrated by the maintainer.
 
 ## License
 
