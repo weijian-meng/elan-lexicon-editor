@@ -6,7 +6,7 @@
 mod lexicon;
 mod source;
 
-use lexicon::{build_xml, diff_lexicons, parse_xml, DiffOptions};
+use lexicon::{build_xml, diff_lexicons, new_lexicon, parse_xml, DiffOptions};
 use source::{resolve_source, Source};
 use std::fs;
 use std::sync::Mutex;
@@ -50,6 +50,11 @@ fn parse_xml_command(content: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn build_xml_command(data: serde_json::Value) -> Result<String, String> {
     build_xml(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_lexicon_command(name: String, language: String) -> Result<serde_json::Value, String> {
+    Ok(new_lexicon(&name, &language))
 }
 
 #[tauri::command]
@@ -109,6 +114,7 @@ fn main() {
             open_file,
             parse_xml_command,
             build_xml_command,
+            create_lexicon_command,
             save_file_dialog_command,
             save_file_command,
             set_modified,

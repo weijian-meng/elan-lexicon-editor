@@ -305,32 +305,32 @@ function handleCancelNewLexicon() {
     if (dialog) dialog.classList.add("hidden");
 }
 
-function handleCreateNewLexicon() {
+async function handleCreateNewLexicon() {
     const nameInput = document.getElementById("lexiconName") as HTMLInputElement;
     const langInput = document.getElementById("lexiconLanguage") as HTMLInputElement;
 
     const name = nameInput ? nameInput.value : "New Lexicon";
     const lang = langInput ? langInput.value : "en";
 
-    // Create basic lexicon structure
-    currentLexicon = {
-        header: {
-            "lexicon-name": [name],
-            "language": [lang],
-            "date-created": [new Date().toISOString()],
-        },
-        entry: []
-    };
-    currentFilePath = null;
-    selectedEntry = null;
-    EntryEditor.clear();
-    setIsModified(true);
+    try {
+        currentLexicon = await invoke<any>("create_lexicon_command", {
+            name,
+            language: lang,
+        });
+        currentFilePath = null;
+        selectedEntry = null;
+        EntryEditor.clear();
+        setIsModified(true);
 
-    LexiconTable.render(currentLexicon.entry, null, { sortOrder: "" });
+        LexiconTable.render(currentLexicon.entry, null, { sortOrder: "" });
 
-    handleCancelNewLexicon();
+        handleCancelNewLexicon();
 
-    updateActionAvailability();
+        updateActionAvailability();
+    } catch (e) {
+        console.error(e);
+        alert("Error creating lexicon: " + e);
+    }
 }
 
 async function handleCloseFile() {

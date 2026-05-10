@@ -67,10 +67,11 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 
 ## Data Notice
 
-This repository intentionally does not include real lexicon data. Use
-`resources/elan/template.xml` as a starting point for local testing, or open
-your own ELAN-compatible lexicon XML files. Local test/debug files can be kept
-under `lexicon/`; they are ignored by git.
+This repository intentionally does not include real lexicon data. The app can
+create a blank ELAN-compatible lexicon directly; `resources/elan/template.xml`
+is kept as a reference fixture for local testing. You can also open your own
+ELAN-compatible lexicon XML files. Local test/debug files can be kept under
+`lexicon/`; they are ignored by git.
 
 ## AI Assistance
 
