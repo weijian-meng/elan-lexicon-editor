@@ -4,23 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <title>ELAN Lexicon Editor</title>
-    <style>
-        .toolbar-button:disabled {
-            opacity: .5;
-            border-color: rgba(255, 255, 255, .6);
-            color: rgba(255, 255, 255, .8);
-            cursor: not-allowed
-        }
-    </style>
 </head>
 
 <body>
     <div id="app">
         <div class="toolbar">
-            <h1>
-                <!-- Lexicon Editor -->
-                <span class="file-name" id="fileName">No file open</span>
-            </h1>
+            <div class="topbar-title">
+                <span class="app-mark" aria-hidden="true">EL</span>
+                <h1>
+                    <span class="app-title" id="lexiconTitle">No lexicon open</span>
+                    <span class="file-name" id="lexiconSubtitle">Create or open a lexicon</span>
+                </h1>
+            </div>
             <div class="toolbar-actions">
                 <button class="toolbar-button" id="newLexiconBtn">New</button>
                 <button class="toolbar-button" id="openFileBtn">Open</button>
@@ -32,6 +27,12 @@
 
         <div class="main-content">
             <div class="panel">
+                <div class="pane-header">
+                    <h2>Entries</h2>
+                    <div class="pane-tools">
+                        <input class="search-input" type="text" id="searchInput" placeholder="Search lexical units" />
+                    </div>
+                </div>
                 <div class="panel-content">
                     <div class="table-container">
                         <div class="table-header">
@@ -57,34 +58,44 @@
                         </div>
                     </div>
                 </div>
-	                <div class="panel-footer">
-	                    <button class="button" id="configBtn" title="Lexicon Info">Info</button>
-	                    <button class="button" id="displayOptionsBtn" title="Display Options">Options</button>
-	                    <button class="button" id="addEntryBtn" title="Add Entry">Add</button>
-	                    <button class="button danger" id="removeEntryBtn" title="Delete Selected Entry">Delete</button>
-	                </div>
+                <div class="panel-footer">
+                    <button class="button" id="configBtn" title="Lexicon Info">Info</button>
+                    <button class="button" id="displayOptionsBtn" title="Display Options">Options</button>
+                    <button class="button" id="addEntryBtn" title="Add Entry">Add</button>
+                    <button class="button danger" id="removeEntryBtn" title="Delete Selected Entry">Delete</button>
+                </div>
             </div>
 
-            <div class="panel-resizer" id="panelResizer"></div>
+            <div
+                class="panel-resizer"
+                id="panelResizer"
+                role="separator"
+                aria-label="Resize entry list and editor panes"
+                aria-orientation="vertical"
+                aria-valuemin="25"
+                aria-valuemax="80"
+                aria-valuenow="67"
+                tabindex="0"
+            ></div>
 
-	            <div class="panel">
-	                <div id="entryHeaderBar" class="entry-header hidden">
-	                    <div class="entry-header-left">
-	                        <h2 id="entryHeaderTitle">Entry Details</h2>
-	                        <span class="entry-status" id="entryStatus">No changes</span>
-	                    </div>
-	                </div>
-	                <div class="panel-content">
-		                    <div class="entry-form" id="entryForm">
-		                        <div id="emptySelection">
-		                            <p id="emptySelectionText"></p>
-		                        </div>
-		
-		                        <div id="entryDetails" class="hidden">
-		                            <div class="section-label">Entry</div>
-		                            <div class="entry-core-grid">
-		                                <div class="form-group">
-		                                    <label for="lexicalUnit">Lexical Unit</label>
+            <div class="panel">
+                <div id="entryHeaderBar" class="entry-header hidden">
+                    <div class="entry-header-left">
+                        <h2 id="entryHeaderTitle">Entry Details</h2>
+                        <span class="entry-status" id="entryStatus">No changes</span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="entry-form" id="entryForm">
+                        <div id="emptySelection">
+                            <p id="emptySelectionText"></p>
+                        </div>
+
+                        <div id="entryDetails" class="hidden">
+                            <div class="section-label">Entry</div>
+                            <div class="entry-core-grid">
+                                <div class="form-group">
+                                    <label for="lexicalUnit">Lexical Unit</label>
                                     <input type="text" id="lexicalUnit" />
                                 </div>
 
@@ -118,34 +129,39 @@
                                 </div>
                             </div>
 
-	                            <details class="metadata-details">
-	                                <summary>Entry metadata</summary>
-	                                <div class="metadata-grid">
-	                                    <div class="form-group">
-	                                        <label>Date Created</label>
-	                                        <input type="text" id="dateCreated" disabled />
-	                                    </div>
-	
-	                                    <div class="form-group">
-	                                        <label>Date Modified</label>
-	                                        <input type="text" id="dateModified" disabled />
-	                                    </div>
-	
-	                                    <div class="form-group full-span">
-	                                        <label>ID</label>
-	                                        <input type="text" id="entryId" disabled />
-	                                    </div>
-	                                </div>
-		                            </details>
-		                        </div>
-	                    </div>
-	                </div>
-		                <div class="panel-footer">
-		                    <button class="button" id="discardChangesBtn" disabled title="Discard all changes to this entry">Undo</button>
-		                </div>
-	            </div>
-	        </div>
-	    </div>
+                            <details class="metadata-details">
+                                <summary>Entry metadata</summary>
+                                <div class="metadata-grid">
+                                    <div class="form-group">
+                                        <label>Date Created</label>
+                                        <input type="text" id="dateCreated" disabled />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Date Modified</label>
+                                        <input type="text" id="dateModified" disabled />
+                                    </div>
+
+                                    <div class="form-group full-span">
+                                        <label>ID</label>
+                                        <input type="text" id="entryId" disabled />
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-footer">
+                    <button class="button" id="discardChangesBtn" disabled title="Discard all changes to this entry">Undo</button>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <span class="status-path" id="statusFilePath">No file open</span>
+            <span id="statusRecordCount">0 entries</span>
+            <span class="status-modified" id="statusModified">Saved</span>
+        </div>
+    </div>
 
     <div id="newLexiconDialog" class="dialog-overlay hidden">
         <div class="dialog">
@@ -230,7 +246,7 @@
     </div>
 
     <div id="displayOptionsDialog" class="dialog-overlay hidden">
-        <div class="dialog" style="max-width: 520px; width: 90%;">
+        <div class="dialog dialog-md">
             <div class="dialog-header">
                 <h2>Display Options</h2>
             </div>
@@ -260,7 +276,7 @@
             </div>
             <div class="dialog-footer">
                 <button class="button" id="displayOptionsCancelBtn">Cancel</button>
-                <span style="flex: 1 1 auto;"></span>
+                <span class="dialog-spacer"></span>
                 <button class="button" id="displayOptionsRestoreBtn">Restore Defaults</button>
                 <button class="button" id="displayOptionsApplyBtn">Apply</button>
             </div>
@@ -287,21 +303,21 @@
     <!-- Diff Dialog -->
     <!-- Diff Dialog -->
     <div id="diffDialog" class="dialog-overlay hidden">
-        <div class="dialog" style="max-width: 1100px; width: 90%; height: 80vh;">
+        <div class="dialog dialog-xl dialog-tall">
             <div class="dialog-header">
                 <h2>Review Changes</h2>
             </div>
 
             <div class="diff-toolbar">
                 <div class="diff-toolbar-group">
-                    <label style="font-weight:600; font-size:1.1em; color:#333;">Compare:</label>
-                    <select id="diffLeftSource" class="custom-field-input" style="min-width:180px;">
+                    <label class="diff-source-label">Compare:</label>
+                    <select id="diffLeftSource" class="custom-field-input diff-source-select">
                         <option value="disk">Last Saved (disk)</option>
                         <option value="head">Last Commit (git HEAD)</option>
                         <option value="working">Working (in editor)</option>
                     </select>
-                    <span style="color:#666; font-weight:500;">vs</span>
-                    <select id="diffRightSource" class="custom-field-input" style="min-width:180px;">
+                    <span class="diff-vs">vs</span>
+                    <select id="diffRightSource" class="custom-field-input diff-source-select">
                         <option value="working" selected>Working (in editor)</option>
                         <option value="disk">Last Saved (disk)</option>
                         <option value="head">Last Commit (git HEAD)</option>
@@ -311,15 +327,14 @@
                 <div class="diff-toolbar-spacer"></div>
 
                 <div class="diff-toolbar-group">
-                    <button class="button" id="diffSelectFieldsBtn"
-                        style="background:#fff; color:#333; border:1px solid #ced4da;">Select Fields…</button>
-                    <button class="button" id="diffRunBtn" style="font-weight:500;">Run Comparison</button>
-                    <button class="button" id="diffCloseBtn" style="background:#6c757d;">Close</button>
+                    <button class="button secondary" id="diffSelectFieldsBtn">Select Fields…</button>
+                    <button class="button" id="diffRunBtn">Run Comparison</button>
+                    <button class="button secondary" id="diffCloseBtn">Close</button>
                 </div>
             </div>
 
             <div class="diff-results" id="diffResults">
-                <div style="text-align:center; color:#868e96; margin-top:40px;">
+                <div class="diff-empty-state">
                     Select sources and click "Run Comparison" to see changes.
                 </div>
             </div>
@@ -328,10 +343,10 @@
 
     <!-- Diff Fields Picker Dialog -->
     <div id="diffFieldsDialog" class="dialog-overlay hidden">
-        <div class="dialog" style="max-width: 900px; width: 90%;">
+        <div class="dialog dialog-wide">
             <div class="dialog-header">
                 <h2>Select Fields to Compare</h2>
-                <div style="font-size:12px;color:#666;">Left (basis) vs Right (target). Excludes ids and timestamps by
+                <div class="dialog-subtitle">Left (basis) vs Right (target). Excludes ids and timestamps by
                     default.</div>
             </div>
             <div class="config-tabs">
@@ -348,7 +363,7 @@
                 <button class="button" id="diffFieldsSelectAll">Select All</button>
                 <button class="button" id="diffFieldsClear">Clear</button>
                 <button class="button" id="diffFieldsRestoreBtn">Restore Defaults</button>
-                <span style="flex:1"></span>
+                <span class="dialog-spacer"></span>
                 <button class="button" id="diffFieldsCancelBtn">Cancel</button>
                 <button class="button" id="diffFieldsSaveBtn">Save</button>
             </div>

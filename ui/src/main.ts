@@ -10,6 +10,7 @@ import * as DiffViewer from "./DiffViewer";
 import { LexiconEntry } from "./LexiconTable";
 
 // Styles
+import "./assets/design-tokens.css";
 import "./assets/styles.css";
 import "./assets/diff-styles.css";
 
@@ -32,31 +33,56 @@ const actionRefs: {
     displayOptionsBtn?: HTMLButtonElement | null;
     addEntryBtn?: HTMLButtonElement | null;
     removeEntryBtn?: HTMLButtonElement | null;
+    searchInput?: HTMLInputElement | null;
     emptySelectionText?: HTMLElement | null;
+    statusFilePath?: HTMLElement | null;
+    statusRecordCount?: HTMLElement | null;
+    statusModified?: HTMLElement | null;
 } = {};
 
-function getBasename(path: string): string {
-    const parts = path.split(/[\\/]/);
-    return parts[parts.length - 1] || path;
+function firstText(value: any): string {
+    if (Array.isArray(value)) return firstText(value[0]);
+    if (typeof value === "string") return value.trim();
+    if (value && typeof value._ === "string") return value._.trim();
+    return "";
+}
+
+function getLexiconHeader(): any | null {
+    if (!currentLexicon || !currentLexicon.header) return null;
+    return Array.isArray(currentLexicon.header)
+        ? currentLexicon.header[0] || null
+        : currentLexicon.header;
+}
+
+function getLexiconDisplayTitle(): string {
+    const header = getLexiconHeader();
+    const title = header ? firstText(header.name) : "";
+    if (title) return title;
+    if (currentLexicon) return "Untitled lexicon";
+    return "No lexicon open";
 }
 
 function updateFileLabelAndTitle() {
     const baseTitle = "ELAN Lexicon Editor";
-    const filenameEl = document.getElementById("fileName");
+    const titleEl = document.getElementById("lexiconTitle");
+    const subtitleEl = document.getElementById("lexiconSubtitle");
 
-    let fileLabel = "No file open";
     let titleSuffix = "";
+    let subtitle = "Create or open a lexicon";
 
-    if (currentFilePath) {
-        fileLabel = getBasename(currentFilePath);
-        titleSuffix = currentFilePath;
-    } else if (currentLexicon) {
-        fileLabel = "Untitled";
-        titleSuffix = "Untitled";
+    if (currentLexicon) {
+        titleSuffix = getLexiconDisplayTitle();
+        const header = getLexiconHeader();
+        const language = header ? firstText(header.language) : "";
+        subtitle = language ? `Language: ${language}` : "Lexicon document";
     }
 
-    if (filenameEl) {
-        filenameEl.textContent = fileLabel;
+    if (titleEl) {
+        titleEl.textContent = getLexiconDisplayTitle();
+    }
+
+    if (subtitleEl) {
+        subtitleEl.textContent = subtitle;
     }
 
     const modifiedMarker = isModified ? " *" : "";
@@ -64,11 +90,114 @@ function updateFileLabelAndTitle() {
         ? `${baseTitle} — ${titleSuffix}${modifiedMarker}`
         : `${baseTitle}${modifiedMarker}`;
 
-    getCurrentWebviewWindow()
-        .setTitle(windowTitle)
-        .catch(() => {
-            document.title = windowTitle;
-        });
+    try {
+        getCurrentWebviewWindow()
+            .setTitle(windowTitle)
+            .catch(() => {
+                document.title = windowTitle;
+            });
+    } catch {
+        document.title = windowTitle;
+    }
+}
+
+function initPanelResizer() {
+    const resizer = document.getElementById("panelResizer") as HTMLElement | null;
+    const container = resizer ? resizer.parentElement as HTMLElement | null : null;
+    const leftPanel = resizer?.previousElementSibling as HTMLElement | null;
+    const rightPanel = resizer?.nextElementSibling as HTMLElement | null;
+
+    if (!resizer || !container || !leftPanel || !rightPanel) return;
+
+    const minPercent = Number(resizer.getAttribute("aria-valuemin")) || 25;
+    const maxPercent = Number(resizer.getAttribute("aria-valuemax")) || 80;
+    let currentPercent = Number(resizer.getAttribute("aria-valuenow")) || 67;
+
+    const clamp = (value: number, min: number, max: number) =>
+        Math.min(max, Math.max(min, value));
+
+    const applySplit = (percent: number) => {
+        const next = clamp(percent, minPercent, maxPercent);
+        currentPercent = next;
+        leftPanel.style.width = `${next}%`;
+        rightPanel.style.width = `${100 - next}%`;
+        resizer.setAttribute("aria-valuenow", String(Math.round(next)));
+    };
+
+    const percentFromClientX = (clientX: number) => {
+        const rect = container.getBoundingClientRect();
+        const available = Math.max(1, rect.width - resizer.offsetWidth);
+        return ((clientX - rect.left) / available) * 100;
+    };
+
+    resizer.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        resizer.classList.add("dragging");
+        resizer.setPointerCapture(event.pointerId);
+    });
+
+    resizer.addEventListener("pointermove", (event) => {
+        if (!resizer.classList.contains("dragging")) return;
+        applySplit(percentFromClientX(event.clientX));
+    });
+
+    const stopDragging = (event: PointerEvent) => {
+        if (!resizer.classList.contains("dragging")) return;
+        resizer.classList.remove("dragging");
+        if (resizer.hasPointerCapture(event.pointerId)) {
+            resizer.releasePointerCapture(event.pointerId);
+        }
+    };
+
+    resizer.addEventListener("pointerup", stopDragging);
+    resizer.addEventListener("pointercancel", stopDragging);
+
+    resizer.addEventListener("keydown", (event) => {
+        const step = event.shiftKey ? 5 : 2;
+        if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            applySplit(currentPercent - step);
+        } else if (event.key === "ArrowRight") {
+            event.preventDefault();
+            applySplit(currentPercent + step);
+        } else if (event.key === "Home") {
+            event.preventDefault();
+            applySplit(minPercent);
+        } else if (event.key === "End") {
+            event.preventDefault();
+            applySplit(maxPercent);
+        }
+    });
+
+    applySplit(currentPercent);
+}
+
+function getEntryCount(): number {
+    if (!currentLexicon || !Array.isArray(currentLexicon.entry)) return 0;
+    return currentLexicon.entry.length;
+}
+
+function updateStatusBar() {
+    const entryCount = getEntryCount();
+    const fileStatus = currentFilePath
+        ? currentFilePath
+        : currentLexicon
+            ? "Untitled lexicon"
+            : "No file open";
+
+    if (actionRefs.statusFilePath) {
+        actionRefs.statusFilePath.textContent = fileStatus;
+    }
+
+    if (actionRefs.statusRecordCount) {
+        actionRefs.statusRecordCount.textContent =
+            entryCount === 1 ? "1 entry" : `${entryCount} entries`;
+    }
+
+    if (actionRefs.statusModified) {
+        actionRefs.statusModified.textContent = isModified ? "Modified" : "Saved";
+        actionRefs.statusModified.classList.toggle("modified", isModified);
+    }
 }
 
 function updateActionAvailability() {
@@ -85,17 +214,19 @@ function updateActionAvailability() {
     if (actionRefs.addEntryBtn) actionRefs.addEntryBtn.disabled = !hasLexicon;
     if (actionRefs.removeEntryBtn)
         actionRefs.removeEntryBtn.disabled = !hasLexicon || !hasSelection;
+    if (actionRefs.searchInput) actionRefs.searchInput.disabled = !hasLexicon;
 
     if (actionRefs.emptySelectionText) {
         actionRefs.emptySelectionText.textContent = hasLexicon
             ? "Select an entry to edit or create a new one."
-            : "";
+            : "Create or open a lexicon to begin.";
     }
 
     const appEl = document.getElementById("app");
     if (appEl) appEl.classList.toggle("no-lexicon", !hasLexicon);
 
     updateFileLabelAndTitle();
+    updateStatusBar();
 }
 
 // Initialize on DOMContentLoaded to ensure elements exist
@@ -170,7 +301,11 @@ function init() {
     actionRefs.removeEntryBtn = removeEntryBtn;
     actionRefs.emptySelectionText = document.getElementById("emptySelectionText");
 
-    const searchInput = document.getElementById("searchInput");
+    const searchInput = document.getElementById("searchInput") as HTMLInputElement | null;
+    actionRefs.searchInput = searchInput;
+    actionRefs.statusFilePath = document.getElementById("statusFilePath");
+    actionRefs.statusRecordCount = document.getElementById("statusRecordCount");
+    actionRefs.statusModified = document.getElementById("statusModified");
 
     const createNewLexiconBtn = document.getElementById("createNewLexiconBtn");
     const cancelNewLexiconBtn = document.getElementById("cancelNewLexiconBtn");
@@ -224,6 +359,8 @@ function init() {
         });
     }
 
+    initPanelResizer();
+
     // Initial landing state: only New/Open enabled
     updateActionAvailability();
 
@@ -273,10 +410,10 @@ function setIsModified(modified: boolean) {
         console.log(`State changed: isModified = ${modified}`);
     }
     isModified = modified;
-    const filenameEl = document.getElementById("fileName");
-    if (filenameEl) {
-        if (modified) filenameEl.classList.add("modified");
-        else filenameEl.classList.remove("modified");
+    const titleEl = document.getElementById("lexiconTitle");
+    if (titleEl) {
+        if (modified) titleEl.classList.add("modified");
+        else titleEl.classList.remove("modified");
     }
     // Update window title logic if desired
     invoke("set_modified", { modified }).catch((e) =>

@@ -166,7 +166,15 @@ function updateEntryHeading() {
   const lexicalUnit =
     (selectedEntry["lexical-unit"] && selectedEntry["lexical-unit"][0]) || "";
   if (lexicalUnit.trim()) {
-    refs.entryHeader.textContent = `Entry: ${lexicalUnit}`;
+    const prefix = document.createElement("span");
+    prefix.className = "entry-header-prefix";
+    prefix.textContent = "Entry:";
+
+    const value = document.createElement("span");
+    value.className = "entry-lexical-unit";
+    value.textContent = lexicalUnit;
+
+    refs.entryHeader.replaceChildren(prefix, value);
   } else {
     refs.entryHeader.textContent = "Entry Details";
   }
