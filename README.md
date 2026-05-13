@@ -4,6 +4,22 @@ Desktop editor for creating, reviewing, and saving XML lexicon files that follow
 
 The app is built with Tauri 2, a Rust backend, and a lightweight vanilla TypeScript/DOM front end, so it should remain practical on older machines.
 
+![ELAN Lexicon Editor main window](docs/assets/main-window.png)
+
+## Why this app?
+
+This app is designed to reduce the friction in the lexicon-editing and interlinearization workflow with ELAN, especially in collaborative projects. Instead of creating/maintaining a separate document in another program (e.g. SIL Toolbox or FLEx) and importing it back and forth, you can edit the lexicon XML directly. While ELAN has a built-in lexicon editor, it is not a standalone app, and does not fare well with version-controlled, collaborative workflows. This app interacts with the native XML format following ELAN's lexicon schema.
+
+Here are the main quality-of-life improvements:
+
+- Lightweight, standalone desktop app that can run on old hardware, with a modern and clean UI;
+- Highly consistent cross-platform behavior and UI, and potential for quick iterative development without having to build separately for each platform;
+- Built-in semantic diff for human-friendly version control and change tracking, especially if the file is stored in a git repo.
+
+ELAN is designed to work with a "managed" lexicon file. It stores the lexicon file in a hidden directory in the file system. This is in principle not designed for collaborative editing, since edits to the copy managed by ELAN will not automatically propagate to the original file.
+
+To mimic a "referenced" lexicon, you need to store the lexicon file elsewhere (e.g. in a shared git repo) and create a symbolic link to it in the hidden directory, which tricks ELAN into thinking that it is managed. This is undocumented in the ELAN manual, but works fine in the maintainer's tests.
+
 ## Features
 
 - Split-pane UI: sortable lexicon table + entry editor with multi-sense support
