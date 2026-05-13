@@ -29,8 +29,7 @@
     "targets": [
       "app",
       "dmg",
-      "nsis",
-      "msi"
+      "nsis"
     ],
     "publisher": "Weijian Meng",
     "homepage": "https://github.com/weijian-meng/elan-lexicon-editor",
