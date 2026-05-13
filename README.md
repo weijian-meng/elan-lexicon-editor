@@ -1,13 +1,15 @@
 # ELAN Lexicon Editor
 
-Desktop editor for creating, reviewing, and saving XML lexicon files that follow the ELAN lexicon schema. The app is built with Tauri 2, a Rust backend, and a vanilla TypeScript/DOM front end.
+Desktop editor for creating, reviewing, and saving XML lexicon files that follow the ELAN lexicon schema. It lets you work directly with lexicon files without opening ELAN itself or an associated transcription file.
+
+The app is built with Tauri 2, a Rust backend, and a lightweight vanilla TypeScript/DOM front end, so it should remain practical on older machines.
 
 ## Features
 
 - Split-pane UI: sortable lexicon table + entry editor with multi-sense support
 - Custom lexical sort order (header `sort-order` tokens)
 - Custom fields at entry/sense level (`custom-fields.field-spec`)
-- Diff view against disk or git `HEAD`, with selective field comparison and in-memory restore/delete actions
+- Semantic change tracking against disk or git `HEAD`, useful when lexicon files live in a git repository
 - XML round-trip with stable child ordering and forced array fields
 
 ## Prerequisites
