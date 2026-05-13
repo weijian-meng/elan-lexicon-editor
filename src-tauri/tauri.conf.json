@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "elan-lexicon-editor",
+  "productName": "ELAN Lexicon Editor",
   "version": "0.3.0-beta.1",
   "identifier": "com.weijianmeng.elan-lexicon-editor",
   "build": {
@@ -26,7 +26,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "app",
+      "dmg",
+      "nsis",
+      "msi"
+    ],
+    "publisher": "Weijian Meng",
+    "homepage": "https://github.com/weijian-meng/elan-lexicon-editor",
+    "copyright": "Copyright (c) 2026 Weijian Meng",
+    "license": "ISC",
+    "licenseFile": "../LICENSE",
+    "category": "Productivity",
+    "shortDescription": "Desktop editor for ELAN-compatible XML lexicon files.",
+    "longDescription": "ELAN Lexicon Editor is a desktop application for creating, editing, reviewing, and saving XML lexicon files compatible with ELAN lexicon data.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

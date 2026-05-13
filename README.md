@@ -14,7 +14,6 @@ Tauri 2 desktop app (Rust backend + vanilla TypeScript/DOM front-end) for creati
 
 - Node.js 18+ (tested with Node 20)
 - Rust toolchain (stable) with cargo
-- Platform deps (Linux): `sudo apt-get install -y libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
 
 ## Getting Started
 
@@ -41,6 +40,8 @@ npm run build
 npm run tauri build
 ```
 
+Release packaging is currently focused on macOS and Windows desktop bundles.
+
 ## Testing
 
 ```bash
@@ -63,7 +64,8 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 
 - Workflow: `.github/workflows/build-binaries.yml`
   - Trigger: manual or tags `v*`
-  - Builds Tauri bundles on macOS, Windows, and Linux; uploads artifacts from `src-tauri/target/release/bundle`
+  - Builds Tauri bundles for macOS Apple Silicon, macOS Intel, and Windows
+  - Uploads bundle artifacts from the platform-specific `src-tauri/target/<target>/release/bundle` directories
 
 ## Data Notice
 
@@ -81,4 +83,4 @@ suggestions were reviewed, edited, tested, and integrated by the maintainer.
 
 ## License
 
-ISC
+ISC. See `LICENSE`.
