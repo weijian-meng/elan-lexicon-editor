@@ -1,10 +1,10 @@
 [package]
 name = "app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+version = "0.3.0-beta.1"
+description = "Desktop editor for ELAN-compatible XML lexicon files"
+authors = ["Weijian Meng"]
+license = "ISC"
+repository = "https://github.com/weijian-meng/elan-lexicon-editor"
 edition = "2021"
 rust-version = "1.77.2"
 
