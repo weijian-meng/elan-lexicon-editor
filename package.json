@@ -1,6 +1,6 @@
 {
   "name": "elan-lexicon-editor",
-  "version": "1.0.0",
+  "version": "0.3.0-beta.1",
   "description": "Rust + Tauri application for creating and editing XML lexicon files following the ELAN lexicon schema.",
   "main": "index.js",
   "scripts": {
@@ -13,8 +13,13 @@
     "type": "git",
     "url": "git+https://github.com/weijian-meng/elan-lexicon-editor.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "elan",
+    "lexicon",
+    "tauri",
+    "xml"
+  ],
+  "author": "Weijian Meng",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {

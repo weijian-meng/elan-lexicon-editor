@@ -402,11 +402,7 @@ function renderResults(diff: any) {
 
   if (!allowed) {
     const warning = document.createElement("div");
-    warning.style.marginBottom = "16px";
-    warning.style.color = "#856404";
-    warning.style.background = "#fff3cd";
-    warning.style.padding = "8px";
-    warning.style.borderRadius = "4px";
+    warning.className = "diff-warning";
     warning.textContent =
       'Note: Restore/merge actions are disabled. To enable them, set "Compare" to Disk/HEAD and "vs" to Working.';
     out.appendChild(warning);
@@ -574,7 +570,7 @@ function renderResults(diff: any) {
             const sheader = document.createElement("div");
             sheader.className = "diff-sense-header";
             sheader.innerHTML = `
-                        <span>Sense ${sm.id} <span class="diff-tag" style="background:#fff3bf;color:#f08c00">Modified</span></span>
+                        <span>Sense ${sm.id} <span class="diff-tag modified">Modified</span></span>
                         <button class="button small" ${!allowed ? "disabled" : ""
               } onclick="window.DiffViewer.actions.restoreSense('${m.id}', '${sm.id}', '${leftType}')">Restore</button>
                       `;
@@ -743,4 +739,3 @@ async function applyDeleteSense(entryId: string, senseId: string, leftType: stri
   });
   renderResults(diff);
 }
-

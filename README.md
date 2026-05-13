@@ -54,8 +54,8 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 - `ui/src/EntryEditor.ts` — entry/sense editing, custom fields, autocomplete
 - `ui/src/DiffViewer.ts` — diff UI + restore/delete actions
 - `ui/src/ConfigDialog.ts` — header metadata and custom field specs
-- `src-tauri/src/xml_utils.rs` — XML parse/build (forced arrays, `$` attrs, `_` text, child ordering)
-- `src-tauri/src/diff_utils.rs` — canonicalization and diffing against disk/git/working objects
+- `src-tauri/src/lexicon/` — internal lexicon core boundary for XML parse/build, normalization, diffing, and lightweight validation
+- `src-tauri/src/source.rs` — app-local disk/git/working-object lexicon source resolution
 - `resources/elan/` — ELAN schema/XSD and blank template
 - `lexicon/` — ignored local scratch space for private test/debug lexicon XML files
 
@@ -67,10 +67,11 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 
 ## Data Notice
 
-This repository intentionally does not include real lexicon data. Use
-`resources/elan/template.xml` as a starting point for local testing, or open
-your own ELAN-compatible lexicon XML files. Local test/debug files can be kept
-under `lexicon/`; they are ignored by git.
+This repository intentionally does not include real lexicon data. The app can
+create a blank ELAN-compatible lexicon directly; `resources/elan/template.xml`
+is kept as a reference fixture for local testing. You can also open your own
+ELAN-compatible lexicon XML files. Local test/debug files can be kept under
+`lexicon/`; they are ignored by git.
 
 ## AI Assistance
 
