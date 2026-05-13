@@ -20,7 +20,7 @@
     "xml"
   ],
   "author": "Weijian Meng",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/weijian-meng/elan-lexicon-editor/issues"

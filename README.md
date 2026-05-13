@@ -83,4 +83,4 @@ suggestions were reviewed, edited, tested, and integrated by the maintainer.
 
 ## License
 
-ISC. See `LICENSE`.
+MIT. See `LICENSE`.

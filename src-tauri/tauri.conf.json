@@ -35,7 +35,7 @@
     "publisher": "Weijian Meng",
     "homepage": "https://github.com/weijian-meng/elan-lexicon-editor",
     "copyright": "Copyright (c) 2026 Weijian Meng",
-    "license": "ISC",
+    "license": "MIT",
     "licenseFile": "../LICENSE",
     "category": "Productivity",
     "shortDescription": "Desktop editor for ELAN-compatible XML lexicon files.",
