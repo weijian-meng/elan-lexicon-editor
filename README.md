@@ -27,7 +27,7 @@ npm run dev
 npm run tauri dev
 ```
 
-- Public ELAN reference files live in `resources/elan/`; `lexicon/` is ignored for local test/debug files.
+- `lexicon/` is ignored for local test/debug files.
 - The front-end entry point is `ui/src/main.ts`; backend command wiring starts in `src-tauri/src/main.rs`.
 
 ## Build and Package
@@ -57,7 +57,6 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 - `ui/src/ConfigDialog.ts` — header metadata and custom field specs
 - `src-tauri/src/lexicon/` — internal lexicon core boundary for XML parse/build, normalization, diffing, and lightweight validation
 - `src-tauri/src/source.rs` — app-local disk/git/working-object lexicon source resolution
-- `resources/elan/` — ELAN schema/XSD and blank template
 - `lexicon/` — ignored local scratch space for private test/debug lexicon XML files
 
 ## CI
@@ -70,8 +69,7 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 ## Data Notice
 
 This repository intentionally does not include real lexicon data. The app can
-create a blank ELAN-compatible lexicon directly; `resources/elan/template.xml`
-is kept as a reference fixture for local testing. You can also open your own
+create a blank ELAN-compatible lexicon directly, and you can open your own
 ELAN-compatible lexicon XML files. Local test/debug files can be kept under
 `lexicon/`; they are ignored by git.
 

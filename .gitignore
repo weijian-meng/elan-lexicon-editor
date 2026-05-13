@@ -9,8 +9,7 @@ dist/
 build/
 
 # Local lexicon test/debug files
-lexicon/*
-!lexicon/.gitkeep
+lexicon/
 
 # IDE and editor files
 .idea/
