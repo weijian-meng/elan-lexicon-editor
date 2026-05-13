@@ -1,18 +1,20 @@
 // Lexicon Table Module
 
+import { ElanTextValue, getElanText, getElanTextValues } from "./elanText";
+
 export interface LexiconEntry {
   $: { id: string; dateCreated?: string; dateModified?: string };
-  "lexical-unit"?: string[];
-  "morph-type"?: string[];
-  variant?: string[];
+  "lexical-unit"?: ElanTextValue[];
+  "morph-type"?: ElanTextValue[];
+  variant?: ElanTextValue[];
   sense?: LexiconSense[];
   [key: string]: any;
 }
 
 export interface LexiconSense {
   $: { id: string; order?: string };
-  "grammatical-category"?: string[];
-  gloss?: string[];
+  "grammatical-category"?: ElanTextValue[];
+  gloss?: ElanTextValue[];
   [key: string]: any;
 }
 
@@ -54,7 +56,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
     className: "col-lexical-unit",
     getValues(entry) {
       if (!entry || !entry["lexical-unit"]) return [];
-      return toArray(entry["lexical-unit"]);
+      return getElanTextValues(entry["lexical-unit"]);
     },
   },
   {
@@ -63,7 +65,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
     className: "col-variants",
     getValues(entry) {
       if (!entry || !Array.isArray(entry.variant)) return [];
-      return entry.variant.slice();
+      return getElanTextValues(entry.variant);
     },
   },
   {
@@ -72,7 +74,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
     className: "col-morph-type",
     getValues(entry) {
       if (!entry || !entry["morph-type"]) return [];
-      return toArray(entry["morph-type"]);
+      return getElanTextValues(entry["morph-type"]);
     },
   },
   {
@@ -84,12 +86,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
       const values: string[] = [];
       senses.forEach((sense) => {
         if (!sense) return;
-        const senseValues = sense["grammatical-category"];
-        if (Array.isArray(senseValues)) {
-          senseValues.forEach((value) => values.push(value));
-        } else if (senseValues !== undefined && senseValues !== null) {
-          values.push(senseValues);
-        }
+        values.push(...getElanTextValues(sense["grammatical-category"]));
       });
       return values;
     },
@@ -103,12 +100,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
       const values: string[] = [];
       senses.forEach((sense) => {
         if (!sense) return;
-        const senseValues = sense.gloss;
-        if (Array.isArray(senseValues)) {
-          senseValues.forEach((value) => values.push(value));
-        } else if (senseValues !== undefined && senseValues !== null) {
-          values.push(senseValues);
-        }
+        values.push(...getElanTextValues(sense.gloss));
       });
       return values;
     },
@@ -442,7 +434,7 @@ function getColumnValues(entry: LexiconEntry, field: string) {
 
 function formatValues(values: any[]) {
   const sanitized = (Array.isArray(values) ? values : [])
-    .map((val) => (val === undefined || val === null ? "" : String(val).trim()))
+    .map((val) => getElanText(val).trim())
     .filter((val) => val.length > 0);
 
   if (sanitized.length === 0) return "";
@@ -477,4 +469,3 @@ function updateHeaderIndicators() {
     }
   });
 }
-

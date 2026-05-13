@@ -8,6 +8,7 @@ import * as ConfigDialog from "./ConfigDialog";
 import * as DisplayOptions from "./DisplayOptions";
 import * as DiffViewer from "./DiffViewer";
 import { LexiconEntry } from "./LexiconTable";
+import { getFirstElanText } from "./elanText";
 
 // Styles
 import "./assets/design-tokens.css";
@@ -41,10 +42,7 @@ const actionRefs: {
 } = {};
 
 function firstText(value: any): string {
-    if (Array.isArray(value)) return firstText(value[0]);
-    if (typeof value === "string") return value.trim();
-    if (value && typeof value._ === "string") return value._.trim();
-    return "";
+    return getFirstElanText(value).trim();
 }
 
 function getLexiconHeader(): any | null {
@@ -623,7 +621,7 @@ function handleSearch(query: string) {
 
     const filtered = currentLexicon.entry.filter((e: any) => {
         // Basic search in lexical unit, morph type, gloss
-        const lu = (e["lexical-unit"] && e["lexical-unit"][0]) || "";
+        const lu = getFirstElanText(e["lexical-unit"]);
         if (lu.toLowerCase().includes(q)) return true;
         return false;
     });

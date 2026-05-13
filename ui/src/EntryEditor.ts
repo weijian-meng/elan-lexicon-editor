@@ -1,5 +1,12 @@
 // Entry Editor Module
 
+import {
+  getElanText,
+  getElanTextValues,
+  getFirstElanText,
+  setElanTextAt,
+  setFirstElanText,
+} from "./elanText";
 import { LexiconEntry, LexiconSense } from "./LexiconTable";
 
 type Lexicon = {
@@ -66,17 +73,10 @@ function collectEntryFieldValues(fieldName: string): string[] {
   const values = new Set<string>();
   lexicon.entry!.forEach((entry) => {
     if (!entry) return;
-    const fieldVal = entry[fieldName];
-    if (Array.isArray(fieldVal)) {
-      fieldVal.forEach((v: any) => {
-        const text = typeof v === "string" ? v : (v && v._) || "";
-        const normalized = text.trim();
-        if (normalized) values.add(normalized);
-      });
-    } else if (typeof fieldVal === "string") {
-      const normalized = fieldVal.trim();
+    getElanTextValues(entry[fieldName]).forEach((text) => {
+      const normalized = text.trim();
       if (normalized) values.add(normalized);
-    }
+    });
   });
   return Array.from(values).sort((a, b) => a.localeCompare(b));
 }
@@ -89,17 +89,10 @@ function collectSenseFieldValues(fieldName: string): string[] {
     const senses = entry && Array.isArray(entry.sense) ? entry.sense : [];
     senses.forEach((sense) => {
       if (!sense) return;
-      const fieldVal = sense[fieldName];
-      if (Array.isArray(fieldVal)) {
-        fieldVal.forEach((v: any) => {
-          const text = typeof v === "string" ? v : (v && v._) || "";
-          const normalized = text.trim();
-          if (normalized) values.add(normalized);
-        });
-      } else if (typeof fieldVal === "string") {
-        const normalized = fieldVal.trim();
+      getElanTextValues(sense[fieldName]).forEach((text) => {
+        const normalized = text.trim();
         if (normalized) values.add(normalized);
-      }
+      });
     });
   });
   return Array.from(values).sort((a, b) => a.localeCompare(b));
@@ -163,8 +156,7 @@ export function init(options: EntryEditorOptions) {
 function updateEntryHeading() {
   if (!refs.entryHeader || !selectedEntry) return;
 
-  const lexicalUnit =
-    (selectedEntry["lexical-unit"] && selectedEntry["lexical-unit"][0]) || "";
+  const lexicalUnit = getFirstElanText(selectedEntry["lexical-unit"]);
   if (lexicalUnit.trim()) {
     const prefix = document.createElement("span");
     prefix.className = "entry-header-prefix";
@@ -263,7 +255,7 @@ function handleRemoveVariant(index: number) {
 function handleVariantChange(index: number, value: string) {
   if (!selectedEntry) return;
   if (!selectedEntry.variant) selectedEntry.variant = [];
-  selectedEntry.variant[index] = value;
+  setElanTextAt(selectedEntry.variant, index, value);
   updateEntryFromForm();
 }
 
@@ -294,8 +286,8 @@ function updateEntryFromForm() {
   const lexicalUnitInput = refs.lexicalUnitInput as HTMLInputElement;
   const morphTypeInput = refs.morphTypeInput as HTMLInputElement;
 
-  selectedEntry["lexical-unit"] = [lexicalUnitInput.value];
-  selectedEntry["morph-type"] = [morphTypeInput.value];
+  setFirstElanText(selectedEntry, "lexical-unit", lexicalUnitInput.value);
+  setFirstElanText(selectedEntry, "morph-type", morphTypeInput.value);
 
   // Update custom entry fields (standard and field@name) not tied to senses
   refs.entryDetails
@@ -317,7 +309,7 @@ function updateEntryFromForm() {
           selectedEntry!.field.push({ $: { name: nameAttr }, _: input.value });
         }
       } else {
-        selectedEntry![fieldName] = [input.value];
+        setFirstElanText(selectedEntry!, fieldName, input.value);
       }
     });
 
@@ -329,11 +321,17 @@ function updateEntryFromForm() {
     const gi = senseEl.querySelector(".gloss") as HTMLInputElement;
     const di = senseEl.querySelector(".definition") as HTMLInputElement;
     if (!selectedEntry.sense[index]) return;
-    selectedEntry.sense[index]["grammatical-category"] = [
-      gci ? gci.value : "",
-    ];
-    selectedEntry.sense[index].gloss = [gi ? gi.value : ""];
-    selectedEntry.sense[index]["definition"] = [di ? di.value : ""];
+    setFirstElanText(
+      selectedEntry.sense[index],
+      "grammatical-category",
+      gci ? gci.value : ""
+    );
+    setFirstElanText(selectedEntry.sense[index], "gloss", gi ? gi.value : "");
+    setFirstElanText(
+      selectedEntry.sense[index],
+      "definition",
+      di ? di.value : ""
+    );
 
     // Custom sense fields
     senseEl
@@ -359,7 +357,11 @@ function updateEntryFromForm() {
             });
           }
         } else {
-          selectedEntry.sense[index][fieldName] = [input.value];
+          setFirstElanText(
+            selectedEntry.sense[index],
+            fieldName,
+            input.value
+          );
         }
       });
   });
@@ -413,12 +415,10 @@ function renderCustomEntryFields() {
       const found = fields.find(
         (f: any) => f && f.$ && f.$.name === customName
       );
-      return (found && found._) || "";
+      return getElanText(found);
     }
     const val = selectedEntry[fieldName];
-    if (Array.isArray(val)) return val[0] || "";
-    if (typeof val === "string") return val;
-    return "";
+    return getFirstElanText(val);
   };
 
   const appendField = (
@@ -490,7 +490,7 @@ function renderCustomEntryFields() {
         (f) => f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName
       );
       if (isDefined) return;
-      appendField(fieldName, "field", field._ || "", fieldName);
+      appendField(fieldName, "field", getElanText(field), fieldName);
     });
   }
 }
@@ -546,10 +546,7 @@ function renderCustomSenseFields(
       input.dataset.customName = customName;
     }
 
-    input.value =
-      sense[fieldName] && sense[fieldName].length > 0
-        ? sense[fieldName][0]
-        : "";
+    input.value = getFirstElanText(sense[fieldName]);
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
@@ -577,8 +574,7 @@ function renderCustomSenseFields(
     input.className = "custom-field-input";
     input.dataset.fieldName = key;
     input.dataset.senseIndex = String(senseIndex);
-    input.value =
-      sense[key] && sense[key].length > 0 ? sense[key][0] : "";
+    input.value = getFirstElanText(sense[key]);
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
@@ -611,7 +607,7 @@ function renderCustomSenseFields(
       input.dataset.fieldName = "field";
       input.dataset.customName = fieldName;
       input.dataset.senseIndex = String(senseIndex);
-      input.value = field._ || "";
+      input.value = getElanText(field);
       input.oninput = () => updateEntryFromForm();
 
       formGroup.appendChild(label);
@@ -622,13 +618,8 @@ function renderCustomSenseFields(
 }
 
 function buildSenseSummary(sense: LexiconSense) {
-  const grammaticalCategory =
-    (sense["grammatical-category"] &&
-      Array.isArray(sense["grammatical-category"]) &&
-      sense["grammatical-category"][0]) ||
-    "";
-  const gloss =
-    (sense.gloss && Array.isArray(sense.gloss) && sense.gloss[0]) || "";
+  const grammaticalCategory = getFirstElanText(sense["grammatical-category"]);
+  const gloss = getFirstElanText(sense.gloss);
 
   const parts = [grammaticalCategory, gloss]
     .map((p) => (p || "").toString().trim())
@@ -653,9 +644,9 @@ function renderEntryForm() {
 
   // Standard fields
   (refs.lexicalUnitInput as HTMLInputElement).value =
-    (selectedEntry["lexical-unit"] && selectedEntry["lexical-unit"][0]) || "";
+    getFirstElanText(selectedEntry["lexical-unit"]);
   (refs.morphTypeInput as HTMLInputElement).value =
-    (selectedEntry["morph-type"] && selectedEntry["morph-type"][0]) || "";
+    getFirstElanText(selectedEntry["morph-type"]);
   attachAutocomplete(
     refs.morphTypeInput as HTMLInputElement,
     AUTOCOMPLETE_IDS.morphType
@@ -680,7 +671,7 @@ function renderEntryForm() {
 
       const variantInput = document.createElement("input");
       variantInput.type = "text";
-      variantInput.value = variant;
+      variantInput.value = getElanText(variant);
       variantInput.className = "variant-input";
       variantInput.oninput = (e) =>
         handleVariantChange(index, (e.target as HTMLInputElement).value);
@@ -796,8 +787,7 @@ function renderEntryForm() {
     grammaticalCategoryInput.type = "text";
     grammaticalCategoryInput.className = "grammatical-category";
     grammaticalCategoryInput.value =
-      (sense["grammatical-category"] && sense["grammatical-category"][0]) ||
-      "";
+      getFirstElanText(sense["grammatical-category"]);
     attachAutocomplete(
       grammaticalCategoryInput,
       AUTOCOMPLETE_IDS.grammaticalCategory
@@ -813,7 +803,7 @@ function renderEntryForm() {
     const glossInput = document.createElement("input");
     glossInput.type = "text";
     glossInput.className = "gloss";
-    glossInput.value = (sense.gloss && sense.gloss[0]) || "";
+    glossInput.value = getFirstElanText(sense.gloss);
     glossInput.oninput = updateEntryFromForm;
     glossGroup.appendChild(glossLabel);
     glossGroup.appendChild(glossInput);
@@ -832,10 +822,7 @@ function renderEntryForm() {
     const definitionInput = document.createElement("input");
     definitionInput.type = "text";
     definitionInput.className = "definition";
-    const definitionVal = (sense as any)["definition"];
-    definitionInput.value = Array.isArray(definitionVal)
-      ? definitionVal[0] || ""
-      : definitionVal || "";
+    definitionInput.value = getFirstElanText((sense as any)["definition"]);
     definitionInput.oninput = updateEntryFromForm;
     definitionGroup.appendChild(definitionLabel);
     definitionGroup.appendChild(definitionInput);
