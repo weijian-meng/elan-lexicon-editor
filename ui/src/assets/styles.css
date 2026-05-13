@@ -322,6 +322,7 @@ textarea:focus-visible,
 }
 
 .table-container {
+  --table-scrollbar-gutter: 10px;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -341,6 +342,7 @@ textarea:focus-visible,
 .table-header {
   width: 100%;
   flex: 0 0 auto;
+  padding-right: var(--table-scrollbar-gutter);
   background: var(--app-bg-alt);
   border-bottom: 1px solid var(--app-border);
   z-index: 10;
@@ -351,6 +353,7 @@ textarea:focus-visible,
   min-height: 0;
   width: 100%;
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .lexicon-table {
@@ -512,7 +515,17 @@ textarea:focus-visible,
 
 .section-header {
   justify-content: space-between;
+  align-items: center;
   gap: var(--space-md);
+  min-height: var(--control-sm);
+}
+
+.section-header .button {
+  flex: 0 0 auto;
+}
+
+.senses-section > .section-header {
+  padding-inline: var(--space-md);
 }
 
 .variant-group {
