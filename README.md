@@ -1,6 +1,6 @@
 # ELAN Lexicon Editor
 
-Tauri 2 desktop app (Rust backend + vanilla TypeScript/DOM front-end) for creating and editing XML lexicon files that follow the ELAN lexicon schema. The old Python/pywebview implementation is deprecated; follow the instructions below.
+Desktop editor for creating, reviewing, and saving XML lexicon files that follow the ELAN lexicon schema. The app is built with Tauri 2, a Rust backend, and a vanilla TypeScript/DOM front end.
 
 ## Features
 
@@ -13,7 +13,7 @@ Tauri 2 desktop app (Rust backend + vanilla TypeScript/DOM front-end) for creati
 ## Prerequisites
 
 - Node.js 18+ (tested with Node 20)
-- Rust toolchain (stable) with cargo
+- Rust stable toolchain with Cargo
 
 ## Getting Started
 
@@ -28,7 +28,7 @@ npm run tauri dev
 ```
 
 - Public ELAN reference files live in `resources/elan/`; `lexicon/` is ignored for local test/debug files.
-- The front-end entry point is `ui/src/main.ts`; backend commands are in `src-tauri/src/main.rs`.
+- The front-end entry point is `ui/src/main.ts`; backend command wiring starts in `src-tauri/src/main.rs`.
 
 ## Build and Package
 
@@ -65,7 +65,7 @@ cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 - Workflow: `.github/workflows/build-binaries.yml`
   - Trigger: manual or tags `v*`
   - Builds Tauri bundles for macOS Apple Silicon, macOS Intel, and Windows
-  - Uploads bundle artifacts from the platform-specific `src-tauri/target/<target>/release/bundle` directories
+  - Uploads artifacts from the platform-specific `src-tauri/target/<target>/release/bundle` directories
 
 ## Data Notice
 
@@ -77,9 +77,9 @@ ELAN-compatible lexicon XML files. Local test/debug files can be kept under
 
 ## AI Assistance
 
-Parts of this project were developed with assistance from AI coding tools,
-including Cursor, Claude, Antigravity, and OpenAI Codex. AI-generated
-suggestions were reviewed, edited, tested, and integrated by the maintainer.
+The maintainer designed the app behavior and UI direction, reviewed the code, tested the app, and is responsible for the final design decisions and releases. Coding assistance was provided by AI tools including Cursor, Claude, Antigravity, and OpenAI Codex at various stages.
+
+The app comes with no warranty. Back up your data and use it at your own risk.
 
 ## License
 
