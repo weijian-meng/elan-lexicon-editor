@@ -816,13 +816,48 @@ textarea,
 
 .display-options-list label,
 .display-options-toggle {
+  display: flex;
+  align-items: center;
   gap: var(--space-sm);
   color: var(--app-text);
   font-weight: var(--weight-normal);
 }
 
+.display-options-list label {
+  min-height: var(--control-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+}
+
+.display-options-list label:hover {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface-hover);
+}
+
 .display-options-list input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
   margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--app-accent);
+}
+
+.display-options-list label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.display-options-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--app-accent);
 }
 
 .display-options-toggle .hint {
