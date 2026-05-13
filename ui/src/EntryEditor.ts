@@ -1,11 +1,13 @@
 // Entry Editor Module
 
 import {
+  findNamedElanFieldIndex,
   getElanText,
   getElanTextValues,
   getFirstElanText,
   setElanTextAt,
   setFirstElanText,
+  toElanTextArray,
 } from "./elanText";
 import { LexiconEntry, LexiconSense } from "./LexiconTable";
 
@@ -96,6 +98,33 @@ function collectSenseFieldValues(fieldName: string): string[] {
     });
   });
   return Array.from(values).sort((a, b) => a.localeCompare(b));
+}
+
+function getFieldArray(value: any) {
+  return toElanTextArray(value);
+}
+
+function getNamedFieldText(value: any, name: string) {
+  const fields = getFieldArray(value);
+  const idx = findNamedElanFieldIndex(fields, name);
+  return idx >= 0 ? getElanText(fields[idx]) : "";
+}
+
+function setNamedFieldText(target: { [key: string]: any }, name: string, text: string) {
+  const fields = getFieldArray(target.field);
+  const idx = findNamedElanFieldIndex(fields, name);
+
+  if (idx >= 0) {
+    setElanTextAt(fields, idx, text);
+  } else {
+    fields.push({ $: { name }, _: text });
+  }
+
+  target.field = fields;
+}
+
+function setVariantArray(entry: LexiconEntry, variants: any[]) {
+  entry.variant = variants;
 }
 
 // Refresh the shared datalists so morph-type and grammatical-category inputs can suggest existing values
@@ -239,23 +268,27 @@ export function clear() {
 
 function handleAddVariant() {
   if (!selectedEntry) return;
-  if (!selectedEntry.variant) selectedEntry.variant = [];
-  selectedEntry.variant.push("");
+  const variants = toElanTextArray(selectedEntry.variant);
+  variants.push("");
+  setVariantArray(selectedEntry, variants);
   renderEntryForm();
   markChanged();
 }
 
 function handleRemoveVariant(index: number) {
   if (!selectedEntry || !selectedEntry.variant) return;
-  selectedEntry.variant.splice(index, 1);
+  const variants = toElanTextArray(selectedEntry.variant);
+  variants.splice(index, 1);
+  setVariantArray(selectedEntry, variants);
   renderEntryForm();
   markChanged();
 }
 
 function handleVariantChange(index: number, value: string) {
   if (!selectedEntry) return;
-  if (!selectedEntry.variant) selectedEntry.variant = [];
-  setElanTextAt(selectedEntry.variant, index, value);
+  const variants = toElanTextArray(selectedEntry.variant);
+  setElanTextAt(variants, index, value);
+  setVariantArray(selectedEntry, variants);
   updateEntryFromForm();
 }
 
@@ -299,15 +332,7 @@ function updateEntryFromForm() {
       if (fieldName === "field") {
         const nameAttr = input.dataset.customName;
         if (!nameAttr) return;
-        if (!Array.isArray(selectedEntry!.field)) selectedEntry!.field = [];
-        let idx = selectedEntry!.field.findIndex(
-          (f: any) => f && f.$ && f.$.name === nameAttr
-        );
-        if (idx >= 0) {
-          selectedEntry!.field[idx]._ = input.value;
-        } else {
-          selectedEntry!.field.push({ $: { name: nameAttr }, _: input.value });
-        }
+        setNamedFieldText(selectedEntry!, nameAttr, input.value);
       } else {
         setFirstElanText(selectedEntry!, fieldName, input.value);
       }
@@ -343,19 +368,8 @@ function updateEntryFromForm() {
 
         if (fieldName === "field") {
           const nameAttr = input.dataset.customName;
-          if (!Array.isArray(selectedEntry.sense[index].field))
-            selectedEntry.sense[index].field = [];
-          const sIdx = selectedEntry.sense[index].field.findIndex(
-            (f: any) => f && f.$ && f.$.name === nameAttr
-          );
-          if (sIdx >= 0) {
-            selectedEntry.sense[index].field[sIdx]._ = input.value;
-          } else {
-            selectedEntry.sense[index].field.push({
-              $: { name: nameAttr },
-              _: input.value,
-            });
-          }
+          if (!nameAttr) return;
+          setNamedFieldText(selectedEntry.sense[index], nameAttr, input.value);
         } else {
           setFirstElanText(
             selectedEntry.sense[index],
@@ -402,20 +416,10 @@ function renderCustomEntryFields() {
     customFields = [customFieldsContainer["field-spec"]];
   }
 
-  const getFieldArray = (value: any) => {
-    if (Array.isArray(value)) return value;
-    if (value) return [value];
-    return [];
-  };
-
   const getEntryValue = (fieldName: string, customName?: string) => {
     if (!selectedEntry) return "";
     if (fieldName === "field" && customName) {
-      const fields = getFieldArray(selectedEntry.field);
-      const found = fields.find(
-        (f: any) => f && f.$ && f.$.name === customName
-      );
-      return getElanText(found);
+      return getNamedFieldText(selectedEntry.field, customName);
     }
     const val = selectedEntry[fieldName];
     return getFirstElanText(val);
@@ -546,7 +550,10 @@ function renderCustomSenseFields(
       input.dataset.customName = customName;
     }
 
-    input.value = getFirstElanText(sense[fieldName]);
+    input.value =
+      fieldName === "field" && input.dataset.customName
+        ? getNamedFieldText(sense.field, input.dataset.customName)
+        : getFirstElanText(sense[fieldName]);
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
@@ -591,7 +598,11 @@ function renderCustomSenseFields(
       if (!field || !field.$ || !field.$.name) return;
       const fieldName = field.$.name;
       if (fieldName === "definition") return;
-      const isDefined = customFields.some((f) => f.$.name === fieldName);
+      const isDefined = customFields.some(
+        (f) =>
+          f.$.name === fieldName ||
+          (f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName)
+      );
       if (isDefined) return;
 
       const formGroup = document.createElement("div");
@@ -665,7 +676,7 @@ function renderEntryForm() {
   // Variants
   if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
   if (selectedEntry.variant) {
-    selectedEntry.variant.forEach((variant, index) => {
+    toElanTextArray(selectedEntry.variant).forEach((variant, index) => {
       const variantGroup = document.createElement("div");
       variantGroup.className = "variant-group";
 

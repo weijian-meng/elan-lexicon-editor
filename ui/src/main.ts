@@ -8,7 +8,7 @@ import * as ConfigDialog from "./ConfigDialog";
 import * as DisplayOptions from "./DisplayOptions";
 import * as DiffViewer from "./DiffViewer";
 import { LexiconEntry } from "./LexiconTable";
-import { getFirstElanText } from "./elanText";
+import { getElanTextValues, getFirstElanText } from "./elanText";
 
 // Styles
 import "./assets/design-tokens.css";
@@ -58,6 +58,11 @@ function getLexiconDisplayTitle(): string {
     if (title) return title;
     if (currentLexicon) return "Untitled lexicon";
     return "No lexicon open";
+}
+
+function getSortOrder(): string {
+    const header = getLexiconHeader();
+    return header ? firstText(header["sort-order"]) : "";
 }
 
 function updateFileLabelAndTitle() {
@@ -259,12 +264,7 @@ function init() {
                 currentLexicon ? currentLexicon.entry || [] : [],
                 selectedEntry ? selectedEntry.$.id : null,
                 {
-                    sortOrder:
-                        currentLexicon &&
-                            currentLexicon.header &&
-                            currentLexicon.header["sort-order"]
-                            ? currentLexicon.header["sort-order"][0]
-                            : "",
+                    sortOrder: getSortOrder(),
                 }
             );
         },
@@ -391,12 +391,7 @@ function handleLexiconChange() {
         currentLexicon ? currentLexicon.entry || [] : [],
         selectedEntry ? selectedEntry.$.id : null,
         {
-            sortOrder:
-                currentLexicon &&
-                    currentLexicon.header &&
-                    currentLexicon.header["sort-order"]
-                    ? currentLexicon.header["sort-order"][0]
-                    : "",
+            sortOrder: getSortOrder(),
         }
     );
 
@@ -544,10 +539,7 @@ async function handleOpenFile() {
             setIsModified(false);
 
             LexiconTable.render(currentLexicon.entry, null, {
-                sortOrder:
-                    currentLexicon.header && currentLexicon.header["sort-order"]
-                        ? currentLexicon.header["sort-order"][0]
-                        : "",
+                sortOrder: getSortOrder(),
             });
 
             updateActionAvailability();
@@ -620,19 +612,36 @@ function handleSearch(query: string) {
     const q = query.toLowerCase();
 
     const filtered = currentLexicon.entry.filter((e: any) => {
-        // Basic search in lexical unit, morph type, gloss
-        const lu = getFirstElanText(e["lexical-unit"]);
-        if (lu.toLowerCase().includes(q)) return true;
-        return false;
+        return getSearchTextValues(e).some((text) =>
+            text.toLowerCase().includes(q)
+        );
     });
 
     // If query is empty, show all
     const toShow = q ? filtered : currentLexicon.entry;
 
     LexiconTable.render(toShow, selectedEntry ? selectedEntry.$.id : null, {
-        sortOrder:
-            currentLexicon.header && currentLexicon.header["sort-order"]
-                ? currentLexicon.header["sort-order"][0]
-                : "",
+        sortOrder: getSortOrder(),
     });
+}
+
+function getSearchTextValues(entry: any): string[] {
+    const values: string[] = [];
+    if (!entry || typeof entry !== "object") return values;
+
+    Object.keys(entry).forEach((key) => {
+        if (key === "$" || key === "sense") return;
+        values.push(...getElanTextValues(entry[key]));
+    });
+
+    const senses = Array.isArray(entry.sense) ? entry.sense : entry.sense ? [entry.sense] : [];
+    senses.forEach((sense: any) => {
+        if (!sense || typeof sense !== "object") return;
+        Object.keys(sense).forEach((key) => {
+            if (key === "$") return;
+            values.push(...getElanTextValues(sense[key]));
+        });
+    });
+
+    return values.map((text) => text.trim()).filter(Boolean);
 }

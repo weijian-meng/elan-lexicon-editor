@@ -1,14 +1,15 @@
 // Config dialog component for lexicon header, fields tree, and custom fields
 
 import { LexiconEntry } from "./LexiconTable";
+import { getFirstElanText, setFirstElanText } from "./elanText";
 
 type LexiconHeader = {
-  name?: string[];
-  language?: string[];
-  description?: string[];
-  author?: string[];
-  version?: string[];
-  "sort-order"?: string[];
+  name?: any;
+  language?: any;
+  description?: any;
+  author?: any;
+  version?: any;
+  "sort-order"?: any;
   "custom-fields"?: [{ "field-spec"?: any | any[] }];
   [key: string]: any;
 };
@@ -89,22 +90,24 @@ export function show() {
     : lexicon.header;
   if (!header) return;
 
-  ($("configName") as HTMLInputElement).value =
-    (header.name && header.name[0]) || "";
-  ($("configLanguage") as HTMLInputElement).value =
-    (header.language && header.language[0]) || "";
-  ($("configDescription") as HTMLInputElement).value =
-    (header.description && header.description[0]) || "";
-  ($("configAuthor") as HTMLInputElement).value =
-    (header.author && header.author[0]) || "";
-  ($("configVersion") as HTMLInputElement).value =
-    (header.version && header.version[0]) || "";
+  ($("configName") as HTMLInputElement).value = getFirstElanText(header.name);
+  ($("configLanguage") as HTMLInputElement).value = getFirstElanText(
+    header.language
+  );
+  ($("configDescription") as HTMLInputElement).value = getFirstElanText(
+    header.description
+  );
+  ($("configAuthor") as HTMLInputElement).value = getFirstElanText(
+    header.author
+  );
+  ($("configVersion") as HTMLInputElement).value = getFirstElanText(
+    header.version
+  );
 
   renderFieldsTree(header);
   renderCustomFields(header);
   const sortOrderEl = $("sortOrder") as HTMLInputElement;
-  if (sortOrderEl)
-    sortOrderEl.value = (header["sort-order"] && header["sort-order"][0]) || "";
+  if (sortOrderEl) sortOrderEl.value = getFirstElanText(header["sort-order"]);
 
   if (dialogEl) dialogEl.classList.remove("hidden");
 }
@@ -267,15 +270,17 @@ function handleSaveConfig() {
   const authorInput = $("configAuthor") as HTMLInputElement;
   const versionInput = $("configVersion") as HTMLInputElement;
   const sortOrderInput = $("sortOrder") as HTMLInputElement;
-  if (nameInput && nameInput.value) header.name = [nameInput.value];
-  if (languageInput && languageInput.value)
-    header.language = [languageInput.value];
-  if (descriptionInput && descriptionInput.value)
-    header.description = [descriptionInput.value];
-  if (authorInput && authorInput.value) header.author = [authorInput.value];
-  if (versionInput && versionInput.value) header.version = [versionInput.value];
-  if (sortOrderInput && sortOrderInput.value)
-    header["sort-order"] = [sortOrderInput.value];
+  if (nameInput) setFirstElanText(header, "name", nameInput.value);
+  if (languageInput)
+    setFirstElanText(header, "language", languageInput.value);
+  if (descriptionInput)
+    setFirstElanText(header, "description", descriptionInput.value);
+  if (authorInput)
+    setFirstElanText(header, "author", authorInput.value);
+  if (versionInput)
+    setFirstElanText(header, "version", versionInput.value);
+  if (sortOrderInput)
+    setFirstElanText(header, "sort-order", sortOrderInput.value);
 
   const fieldSpecs: any[] = [];
   if (customFieldsList) {

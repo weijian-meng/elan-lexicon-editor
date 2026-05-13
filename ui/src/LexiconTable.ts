@@ -4,17 +4,17 @@ import { ElanTextValue, getElanText, getElanTextValues } from "./elanText";
 
 export interface LexiconEntry {
   $: { id: string; dateCreated?: string; dateModified?: string };
-  "lexical-unit"?: ElanTextValue[];
-  "morph-type"?: ElanTextValue[];
-  variant?: ElanTextValue[];
+  "lexical-unit"?: ElanTextValue | ElanTextValue[];
+  "morph-type"?: ElanTextValue | ElanTextValue[];
+  variant?: ElanTextValue | ElanTextValue[];
   sense?: LexiconSense[];
   [key: string]: any;
 }
 
 export interface LexiconSense {
   $: { id: string; order?: string };
-  "grammatical-category"?: ElanTextValue[];
-  gloss?: ElanTextValue[];
+  "grammatical-category"?: ElanTextValue | ElanTextValue[];
+  gloss?: ElanTextValue | ElanTextValue[];
   [key: string]: any;
 }
 
@@ -64,7 +64,7 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
     label: "Variants",
     className: "col-variants",
     getValues(entry) {
-      if (!entry || !Array.isArray(entry.variant)) return [];
+      if (!entry || !entry.variant) return [];
       return getElanTextValues(entry.variant);
     },
   },

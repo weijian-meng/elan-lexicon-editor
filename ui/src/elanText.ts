@@ -60,3 +60,14 @@ export function setElanTextAt(values: any[], index: number, text: string) {
     values[index] = text;
   }
 }
+
+export function findNamedElanFieldIndex(values: any, name: string): number {
+  return toElanTextArray(values).findIndex(
+    (value) =>
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      value.$ &&
+      value.$.name === name
+  );
+}
