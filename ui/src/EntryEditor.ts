@@ -332,7 +332,13 @@ function updateEntryFromForm() {
       if (fieldName === "field") {
         const nameAttr = input.dataset.customName;
         if (!nameAttr) return;
-        setNamedFieldText(selectedEntry!, nameAttr, input.value);
+        const existingIdx = findNamedElanFieldIndex(
+          getFieldArray(selectedEntry!.field),
+          nameAttr
+        );
+        if (input.value || existingIdx >= 0) {
+          setNamedFieldText(selectedEntry!, nameAttr, input.value);
+        }
       } else {
         setFirstElanText(selectedEntry!, fieldName, input.value);
       }
@@ -369,7 +375,14 @@ function updateEntryFromForm() {
         if (fieldName === "field") {
           const nameAttr = input.dataset.customName;
           if (!nameAttr) return;
-          setNamedFieldText(selectedEntry.sense[index], nameAttr, input.value);
+          const target = selectedEntry.sense[index];
+          const existingIdx = findNamedElanFieldIndex(
+            getFieldArray(target.field),
+            nameAttr
+          );
+          if (input.value || existingIdx >= 0) {
+            setNamedFieldText(target, nameAttr, input.value);
+          }
         } else {
           setFirstElanText(
             selectedEntry.sense[index],
@@ -473,7 +486,7 @@ function renderCustomEntryFields() {
       return;
     }
 
-    appendField(fieldName, fieldName, getEntryValue(fieldName));
+    appendField(fieldName, "field", getEntryValue("field", fieldName), fieldName);
   });
 
   const standardFields = ["$", "lexical-unit", "morph-type", "sense", "variant"];
@@ -491,7 +504,9 @@ function renderCustomEntryFields() {
       if (!field || !field.$ || !field.$.name) return;
       const fieldName = field.$.name;
       const isDefined = customFields.some(
-        (f) => f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName
+        (f) =>
+          f.$.name === fieldName ||
+          (f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName)
       );
       if (isDefined) return;
       appendField(fieldName, "field", getElanText(field), fieldName);
@@ -544,16 +559,13 @@ function renderCustomSenseFields(
     input.dataset.fieldName = fieldName;
     input.dataset.senseIndex = String(senseIndex);
 
-    if (fieldName === "field") {
-      const customName = (field.$ && field.$.nameAttr) || field.$.name;
-      input.dataset.fieldName = "field";
-      input.dataset.customName = customName;
-    }
-
-    input.value =
-      fieldName === "field" && input.dataset.customName
-        ? getNamedFieldText(sense.field, input.dataset.customName)
-        : getFirstElanText(sense[fieldName]);
+    const customName =
+      fieldName === "field"
+        ? (field.$ && field.$.nameAttr) || field.$.name
+        : fieldName;
+    input.dataset.fieldName = "field";
+    input.dataset.customName = customName;
+    input.value = getNamedFieldText(sense.field, customName);
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
