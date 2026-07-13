@@ -88,6 +88,7 @@ body {
 .sense-actions,
 .variant-group,
 .phonetic-group,
+.note-group,
 .custom-field,
 .tree-item-content {
   display: flex;
@@ -492,6 +493,7 @@ textarea:focus-visible,
 
 .variants-section,
 .phonetic-section,
+.note-section,
 .sense-section,
 .metadata-details,
 .custom-field-group {
@@ -501,7 +503,8 @@ textarea:focus-visible,
 }
 
 .variants-section,
-.phonetic-section {
+.phonetic-section,
+.note-section {
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -510,6 +513,7 @@ textarea:focus-visible,
 
 .variants-list,
 .phonetic-list,
+.note-list,
 .entry-custom-fields,
 .senses-section {
   display: flex;
@@ -533,12 +537,14 @@ textarea:focus-visible,
 }
 
 .variant-group,
-.phonetic-group {
+.phonetic-group,
+.note-group {
   gap: var(--space-sm);
 }
 
 .variant-input,
 .phonetic-input,
+.note-input,
 .custom-field-input,
 .sort-order-input,
 .form-group input,
@@ -561,6 +567,7 @@ textarea {
 #lexicalUnit,
 .variant-input,
 .phonetic-input,
+.note-input,
 .grammatical-category,
 .gloss,
 .definition,

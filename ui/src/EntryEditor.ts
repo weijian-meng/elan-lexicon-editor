@@ -131,6 +131,98 @@ function setPhoneticArray(entry: LexiconEntry, phonetics: any[]) {
   entry.phonetic = phonetics;
 }
 
+function setNoteArray(entry: LexiconEntry, notes: any[]) {
+  if (notes.length > 0) {
+    entry.note = notes;
+  } else {
+    entry.note = null;
+  }
+}
+
+function fillMultiFieldContainer(
+  container: HTMLElement,
+  values: any,
+  inputClassName: string,
+  groupClassName: string,
+  onChange: (index: number, value: string) => void,
+  onRemove: (index: number) => void,
+  minItems?: number
+): void {
+  container.innerHTML = "";
+  const items = toElanTextArray(values);
+  items.forEach((item, index) => {
+    const group = document.createElement("div");
+    group.className = groupClassName;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = getElanText(item);
+    input.className = inputClassName;
+    input.oninput = (e) =>
+      onChange(index, (e.target as HTMLInputElement).value);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "Remove";
+    removeButton.className = "button danger small";
+    if (minItems && items.length <= minItems) {
+      removeButton.disabled = true;
+    }
+    removeButton.onclick = () => onRemove(index);
+
+    group.appendChild(input);
+    group.appendChild(removeButton);
+    container.appendChild(group);
+  });
+}
+
+function appendMultiFieldSection(
+  parent: HTMLElement,
+  label: string,
+  fieldKey: string,
+  values: any,
+  onChange: (index: number, value: string) => void,
+  onRemove: (index: number) => void,
+  onAdd: () => void,
+  minItems?: number
+): void {
+  const section = document.createElement("div");
+  section.className = `${fieldKey}-section`;
+
+  const header = document.createElement("div");
+  header.className = "section-header";
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "section-label";
+  labelEl.textContent = label;
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.textContent = `Add ${label}`;
+  addButton.className = "button secondary small";
+  addButton.onclick = onAdd;
+
+  header.appendChild(labelEl);
+  header.appendChild(addButton);
+
+  const list = document.createElement("div");
+  list.className = `${fieldKey}-list`;
+
+  section.appendChild(header);
+  section.appendChild(list);
+  parent.appendChild(section);
+
+  fillMultiFieldContainer(
+    list,
+    values,
+    `${fieldKey}-input`,
+    `${fieldKey}-group`,
+    onChange,
+    onRemove,
+    minItems
+  );
+}
+
 // Refresh the shared datalists so morph-type and grammatical-category inputs can suggest existing values
 function refreshAutocompleteOptions() {
   const morphOptions = collectEntryFieldValues("morph-type");
@@ -168,6 +260,8 @@ export function init(options: EntryEditorOptions) {
   refs.addVariantBtn = $("addVariantBtn");
   refs.phoneticContainer = $("phoneticContainer");
   refs.addPhoneticBtn = $("addPhoneticBtn");
+  refs.noteContainer = $("noteContainer");
+  refs.addNoteBtn = $("addNoteBtn");
   refs.entryCustomFieldsContainer = $("entryCustomFieldsContainer");
   refs.entryHeader = $("entryHeaderTitle");
   refs.entryHeaderBar = $("entryHeaderBar");
@@ -177,6 +271,7 @@ export function init(options: EntryEditorOptions) {
   if (refs.addSenseBtn) refs.addSenseBtn.onclick = handleAddSense;
   if (refs.addVariantBtn) refs.addVariantBtn.onclick = handleAddVariant;
   if (refs.addPhoneticBtn) refs.addPhoneticBtn.onclick = handleAddPhonetic;
+  if (refs.addNoteBtn) refs.addNoteBtn.onclick = handleAddNote;
   if (refs.discardChangesBtn) {
     refs.discardChangesBtn.onclick = handleDiscardChanges;
   }
@@ -271,6 +366,8 @@ export function clear() {
   }
   if (refs.sensesContainer) refs.sensesContainer.innerHTML = "";
   if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
+  if (refs.phoneticContainer) refs.phoneticContainer.innerHTML = "";
+  if (refs.noteContainer) refs.noteContainer.innerHTML = "";
 }
 
 function handleAddVariant() {
@@ -322,6 +419,32 @@ function handlePhoneticChange(index: number, value: string) {
   const phonetics = toElanTextArray(selectedEntry.phonetic);
   setElanTextAt(phonetics, index, value);
   setPhoneticArray(selectedEntry, phonetics);
+  updateEntryFromForm();
+}
+
+function handleAddNote() {
+  if (!selectedEntry) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  notes.push("");
+  setNoteArray(selectedEntry, notes);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleRemoveNote(index: number) {
+  if (!selectedEntry || !selectedEntry.note) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  notes.splice(index, 1);
+  setNoteArray(selectedEntry, notes);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleNoteChange(index: number, value: string) {
+  if (!selectedEntry) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  setElanTextAt(notes, index, value);
+  setNoteArray(selectedEntry, notes);
   updateEntryFromForm();
 }
 
@@ -522,7 +645,7 @@ function renderCustomEntryFields() {
     appendField(fieldName, "field", getEntryValue("field", fieldName), fieldName);
   });
 
-  const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "sense", "variant"];
+  const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "note", "sense", "variant"];
   Object.keys(selectedEntry).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
@@ -719,55 +842,39 @@ function renderEntryForm() {
   refs.morphTypeInput!.oninput = updateEntryFromForm;
 
   // Variants
-  if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
-  if (selectedEntry.variant) {
-    toElanTextArray(selectedEntry.variant).forEach((variant, index) => {
-      const variantGroup = document.createElement("div");
-      variantGroup.className = "variant-group";
-
-      const variantInput = document.createElement("input");
-      variantInput.type = "text";
-      variantInput.value = getElanText(variant);
-      variantInput.className = "variant-input";
-      variantInput.oninput = (e) =>
-        handleVariantChange(index, (e.target as HTMLInputElement).value);
-
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.textContent = "Remove";
-      removeButton.className = "button danger small";
-      removeButton.onclick = () => handleRemoveVariant(index);
-
-      variantGroup.appendChild(variantInput);
-      variantGroup.appendChild(removeButton);
-      refs.variantsContainer!.appendChild(variantGroup);
-    });
+  if (refs.variantsContainer) {
+    fillMultiFieldContainer(
+      refs.variantsContainer,
+      selectedEntry.variant,
+      "variant-input",
+      "variant-group",
+      handleVariantChange,
+      handleRemoveVariant
+    );
   }
 
   // Phonetic
-  if (refs.phoneticContainer) refs.phoneticContainer.innerHTML = "";
-  if (selectedEntry.phonetic) {
-    toElanTextArray(selectedEntry.phonetic).forEach((phonetic, index) => {
-      const phoneticGroup = document.createElement("div");
-      phoneticGroup.className = "phonetic-group";
+  if (refs.phoneticContainer) {
+    fillMultiFieldContainer(
+      refs.phoneticContainer,
+      selectedEntry.phonetic,
+      "phonetic-input",
+      "phonetic-group",
+      handlePhoneticChange,
+      handleRemovePhonetic
+    );
+  }
 
-      const phoneticInput = document.createElement("input");
-      phoneticInput.type = "text";
-      phoneticInput.value = getElanText(phonetic);
-      phoneticInput.className = "phonetic-input";
-      phoneticInput.oninput = (e) =>
-        handlePhoneticChange(index, (e.target as HTMLInputElement).value);
-
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.textContent = "Remove";
-      removeButton.className = "button danger small";
-      removeButton.onclick = () => handleRemovePhonetic(index);
-
-      phoneticGroup.appendChild(phoneticInput);
-      phoneticGroup.appendChild(removeButton);
-      refs.phoneticContainer!.appendChild(phoneticGroup);
-    });
+  // Note
+  if (refs.noteContainer) {
+    fillMultiFieldContainer(
+      refs.noteContainer,
+      selectedEntry.note,
+      "note-input",
+      "note-group",
+      handleNoteChange,
+      handleRemoveNote
+    );
   }
 
   // Senses
