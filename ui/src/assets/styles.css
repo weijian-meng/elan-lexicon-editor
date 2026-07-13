@@ -87,6 +87,7 @@ body {
 .sense-header-left,
 .sense-actions,
 .variant-group,
+.phonetic-group,
 .custom-field,
 .tree-item-content {
   display: flex;
@@ -490,6 +491,7 @@ textarea:focus-visible,
 }
 
 .variants-section,
+.phonetic-section,
 .sense-section,
 .metadata-details,
 .custom-field-group {
@@ -498,7 +500,8 @@ textarea:focus-visible,
   background: var(--app-surface-raised);
 }
 
-.variants-section {
+.variants-section,
+.phonetic-section {
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -506,6 +509,7 @@ textarea:focus-visible,
 }
 
 .variants-list,
+.phonetic-list,
 .entry-custom-fields,
 .senses-section {
   display: flex;
@@ -528,11 +532,13 @@ textarea:focus-visible,
   padding-inline: var(--space-md);
 }
 
-.variant-group {
+.variant-group,
+.phonetic-group {
   gap: var(--space-sm);
 }
 
 .variant-input,
+.phonetic-input,
 .custom-field-input,
 .sort-order-input,
 .form-group input,
@@ -554,6 +560,7 @@ textarea {
 
 #lexicalUnit,
 .variant-input,
+.phonetic-input,
 .grammatical-category,
 .gloss,
 .definition,

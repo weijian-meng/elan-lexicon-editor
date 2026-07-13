@@ -127,6 +127,10 @@ function setVariantArray(entry: LexiconEntry, variants: any[]) {
   entry.variant = variants;
 }
 
+function setPhoneticArray(entry: LexiconEntry, phonetics: any[]) {
+  entry.phonetic = phonetics;
+}
+
 // Refresh the shared datalists so morph-type and grammatical-category inputs can suggest existing values
 function refreshAutocompleteOptions() {
   const morphOptions = collectEntryFieldValues("morph-type");
@@ -162,6 +166,8 @@ export function init(options: EntryEditorOptions) {
   refs.dateModifiedInput = $("dateModified");
   refs.variantsContainer = $("variantsContainer");
   refs.addVariantBtn = $("addVariantBtn");
+  refs.phoneticContainer = $("phoneticContainer");
+  refs.addPhoneticBtn = $("addPhoneticBtn");
   refs.entryCustomFieldsContainer = $("entryCustomFieldsContainer");
   refs.entryHeader = $("entryHeaderTitle");
   refs.entryHeaderBar = $("entryHeaderBar");
@@ -170,6 +176,7 @@ export function init(options: EntryEditorOptions) {
 
   if (refs.addSenseBtn) refs.addSenseBtn.onclick = handleAddSense;
   if (refs.addVariantBtn) refs.addVariantBtn.onclick = handleAddVariant;
+  if (refs.addPhoneticBtn) refs.addPhoneticBtn.onclick = handleAddPhonetic;
   if (refs.discardChangesBtn) {
     refs.discardChangesBtn.onclick = handleDiscardChanges;
   }
@@ -289,6 +296,32 @@ function handleVariantChange(index: number, value: string) {
   const variants = toElanTextArray(selectedEntry.variant);
   setElanTextAt(variants, index, value);
   setVariantArray(selectedEntry, variants);
+  updateEntryFromForm();
+}
+
+function handleAddPhonetic() {
+  if (!selectedEntry) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  phonetics.push("");
+  setPhoneticArray(selectedEntry, phonetics);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleRemovePhonetic(index: number) {
+  if (!selectedEntry || !selectedEntry.phonetic) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  phonetics.splice(index, 1);
+  setPhoneticArray(selectedEntry, phonetics);
+  renderEntryForm();
+  markChanged();
+}
+
+function handlePhoneticChange(index: number, value: string) {
+  if (!selectedEntry) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  setElanTextAt(phonetics, index, value);
+  setPhoneticArray(selectedEntry, phonetics);
   updateEntryFromForm();
 }
 
@@ -489,7 +522,7 @@ function renderCustomEntryFields() {
     appendField(fieldName, "field", getEntryValue("field", fieldName), fieldName);
   });
 
-  const standardFields = ["$", "lexical-unit", "morph-type", "sense", "variant"];
+  const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "sense", "variant"];
   Object.keys(selectedEntry).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
@@ -708,6 +741,32 @@ function renderEntryForm() {
       variantGroup.appendChild(variantInput);
       variantGroup.appendChild(removeButton);
       refs.variantsContainer!.appendChild(variantGroup);
+    });
+  }
+
+  // Phonetic
+  if (refs.phoneticContainer) refs.phoneticContainer.innerHTML = "";
+  if (selectedEntry.phonetic) {
+    toElanTextArray(selectedEntry.phonetic).forEach((phonetic, index) => {
+      const phoneticGroup = document.createElement("div");
+      phoneticGroup.className = "phonetic-group";
+
+      const phoneticInput = document.createElement("input");
+      phoneticInput.type = "text";
+      phoneticInput.value = getElanText(phonetic);
+      phoneticInput.className = "phonetic-input";
+      phoneticInput.oninput = (e) =>
+        handlePhoneticChange(index, (e.target as HTMLInputElement).value);
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.textContent = "Remove";
+      removeButton.className = "button danger small";
+      removeButton.onclick = () => handleRemovePhonetic(index);
+
+      phoneticGroup.appendChild(phoneticInput);
+      phoneticGroup.appendChild(removeButton);
+      refs.phoneticContainer!.appendChild(phoneticGroup);
     });
   }
 
