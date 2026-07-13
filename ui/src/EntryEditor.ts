@@ -16,6 +16,18 @@ type Lexicon = {
   entry?: LexiconEntry[];
 };
 
+interface FieldGroup {
+  id: string;
+  label: string;
+  foldable?: boolean;
+  collapsedByDefault?: boolean;
+  fields: string[];
+}
+
+interface ViewConfig {
+  "field-groups"?: FieldGroup[];
+}
+
 export interface EntryEditorOptions {
   getLexicon: () => Lexicon | null;
   onChange: () => void;
@@ -30,6 +42,9 @@ let selectedEntry: LexiconEntry | null = null;
 
 // Track original state for discard functionality
 let originalEntry: string | null = null;
+
+// Sidecar view config for field grouping
+let viewConfig: ViewConfig | null = null;
 
 const AUTOCOMPLETE_IDS = {
   morphType: "morphTypeOptions",
@@ -237,6 +252,10 @@ function refreshAutocompleteOptions() {
     refs.morphTypeInput as HTMLInputElement,
     AUTOCOMPLETE_IDS.morphType
   );
+}
+
+export function setViewConfig(config: ViewConfig | null) {
+  viewConfig = config;
 }
 
 export function init(options: EntryEditorOptions) {
@@ -576,6 +595,32 @@ function updateEntryFromForm() {
   refreshAutocompleteOptions();
 }
 
+function applyFieldGroups(container: HTMLElement) {
+  if (!viewConfig || !viewConfig["field-groups"]) return;
+  for (const group of viewConfig["field-groups"]) {
+    if (!group.fields || group.fields.length === 0) continue;
+    const matched: HTMLElement[] = [];
+    for (const name of group.fields) {
+      const el = container.querySelector<HTMLElement>(
+        `[data-field-name="${CSS.escape(name)}"]`
+      );
+      if (el) matched.push(el);
+    }
+    if (matched.length === 0) continue;
+
+    const details = document.createElement("details");
+    if (!group.collapsedByDefault) details.open = true;
+    details.className = "field-group-details";
+
+    const summary = document.createElement("summary");
+    summary.textContent = group.label;
+    details.appendChild(summary);
+
+    container.insertBefore(details, matched[0]);
+    matched.forEach((el) => details.appendChild(el));
+  }
+}
+
 function renderCustomEntryFields() {
   const lexicon = getLexicon ? getLexicon() : null;
   if (!lexicon || !lexicon.header || !selectedEntry || !refs.entryDetails)
@@ -689,6 +734,8 @@ function renderCustomEntryFields() {
       appendField(fieldName, "field", getElanText(field), fieldName);
     });
   }
+
+  applyFieldGroups(container);
 }
 
 function renderCustomSenseFields(

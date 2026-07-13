@@ -1051,3 +1051,21 @@ textarea,
     width: 100%;
   }
 }
+
+.field-group-details {
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-surface-raised);
+  padding: var(--space-md);
+}
+
+.field-group-details > summary {
+  cursor: pointer;
+  font-weight: var(--text-weight-medium, 600);
+  margin-bottom: var(--space-sm);
+  list-style: revert;
+}
+
+.field-group-details[open] > summary {
+  margin-bottom: var(--space-md);
+}

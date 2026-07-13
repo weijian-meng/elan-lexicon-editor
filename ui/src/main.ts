@@ -449,6 +449,7 @@ async function handleCreateNewLexicon() {
         });
         currentFilePath = null;
         selectedEntry = null;
+        EntryEditor.setViewConfig(null);
         EntryEditor.clear();
         setIsModified(true);
 
@@ -480,6 +481,7 @@ function performCloseFile() {
     currentLexicon = null;
     currentFilePath = null;
     selectedEntry = null;
+    EntryEditor.setViewConfig(null);
     EntryEditor.clear();
     setIsModified(false);
 
@@ -523,6 +525,17 @@ async function handleOpenFile() {
         if (parsed && parsed.lexicon) {
             currentLexicon = parsed.lexicon;
             currentFilePath = filePath;
+
+            // Try loading sidecar view config from same directory
+            try {
+                const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+                const sidecarPath = dir + '/.lexicon-view.json';
+                const sidecarContent = await invoke<string>("read_text_file", { filePath: sidecarPath });
+                const viewConfig = JSON.parse(sidecarContent);
+                EntryEditor.setViewConfig(viewConfig);
+            } catch {
+                EntryEditor.setViewConfig(null);
+            }
 
             // Ensure entry is an array
             if (!currentLexicon.entry) {
