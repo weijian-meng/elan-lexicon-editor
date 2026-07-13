@@ -91,6 +91,8 @@ body {
 .note-group,
 .gloss-group,
 .definition-group,
+.comment-group,
+.internal-note-group,
 .custom-field,
 .tree-item-content {
   display: flex;
@@ -498,6 +500,8 @@ textarea:focus-visible,
 .note-section,
 .gloss-section,
 .definition-section,
+.comment-section,
+.internal-note-section,
 .sense-section,
 .metadata-details,
 .custom-field-group {
@@ -510,7 +514,9 @@ textarea:focus-visible,
 .phonetic-section,
 .note-section,
 .gloss-section,
-.definition-section {
+.definition-section,
+.comment-section,
+.internal-note-section {
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -522,6 +528,8 @@ textarea:focus-visible,
 .note-list,
 .gloss-list,
 .definition-list,
+.comment-list,
+.internal-note-list,
 .entry-custom-fields,
 .senses-section {
   display: flex;
@@ -548,7 +556,9 @@ textarea:focus-visible,
 .phonetic-group,
 .note-group,
 .gloss-group,
-.definition-group {
+.definition-group,
+.comment-group,
+.internal-note-group {
   gap: var(--space-sm);
 }
 
@@ -557,6 +567,8 @@ textarea:focus-visible,
 .note-input,
 .gloss-input,
 .definition-input,
+.comment-input,
+.internal-note-input,
 .custom-field-input,
 .sort-order-input,
 .form-group input,

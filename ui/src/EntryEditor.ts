@@ -1030,6 +1030,28 @@ function renderEntryForm() {
       () => handleAddSenseField(index, "definition")
     );
 
+    // Comment (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Comment",
+      "comment",
+      (sense as any)["comment"],
+      (valIdx, value) => handleSenseFieldChange(index, "comment", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "comment", valIdx),
+      () => handleAddSenseField(index, "comment")
+    );
+
+    // Internal Note (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Internal Note",
+      "internal-note",
+      (sense as any)["internal-note"],
+      (valIdx, value) => handleSenseFieldChange(index, "internal-note", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "internal-note", valIdx),
+      () => handleAddSenseField(index, "internal-note")
+    );
+
     // Custom sense-level fields
     renderCustomSenseFields(sense, senseBody, index);
 
