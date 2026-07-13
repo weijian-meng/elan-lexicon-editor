@@ -448,6 +448,35 @@ function handleNoteChange(index: number, value: string) {
   updateEntryFromForm();
 }
 
+function handleSenseFieldChange(senseIndex: number, field: string, valIdx: number, value: string) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  setElanTextAt(values, valIdx, value);
+  sense[field] = values;
+  updateEntryFromForm();
+}
+
+function handleRemoveSenseField(senseIndex: number, field: string, valIdx: number) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  values.splice(valIdx, 1);
+  sense[field] = values.length > 0 ? values : null;
+  renderEntryForm();
+  markChanged();
+}
+
+function handleAddSenseField(senseIndex: number, field: string) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  values.push("");
+  sense[field] = values;
+  renderEntryForm();
+  markChanged();
+}
+
 function handleAddSense() {
   if (!selectedEntry) return;
   const order = selectedEntry.sense
@@ -505,19 +534,11 @@ function updateEntryFromForm() {
   senseEls.forEach((senseEl, index) => {
     if (!selectedEntry?.sense) return;
     const gci = senseEl.querySelector(".grammatical-category") as HTMLInputElement;
-    const gi = senseEl.querySelector(".gloss") as HTMLInputElement;
-    const di = senseEl.querySelector(".definition") as HTMLInputElement;
     if (!selectedEntry.sense[index]) return;
     setFirstElanText(
       selectedEntry.sense[index],
       "grammatical-category",
       gci ? gci.value : ""
-    );
-    setFirstElanText(selectedEntry.sense[index], "gloss", gi ? gi.value : "");
-    setFirstElanText(
-      selectedEntry.sense[index],
-      "definition",
-      di ? di.value : ""
     );
 
     // Custom sense fields
@@ -984,38 +1005,30 @@ function renderEntryForm() {
     grammaticalCategoryInput.oninput = updateEntryFromForm;
     grammaticalCategoryGroup.appendChild(grammaticalCategoryLabel);
     grammaticalCategoryGroup.appendChild(grammaticalCategoryInput);
+    senseBody.appendChild(grammaticalCategoryGroup);
 
-    const glossGroup = document.createElement("div");
-    glossGroup.className = "form-group";
-    const glossLabel = document.createElement("label");
-    glossLabel.textContent = "Gloss";
-    const glossInput = document.createElement("input");
-    glossInput.type = "text";
-    glossInput.className = "gloss";
-    glossInput.value = getFirstElanText(sense.gloss);
-    glossInput.oninput = updateEntryFromForm;
-    glossGroup.appendChild(glossLabel);
-    glossGroup.appendChild(glossInput);
+    // Gloss (XSD: minOccurs=1, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Gloss",
+      "gloss",
+      sense.gloss,
+      (valIdx, value) => handleSenseFieldChange(index, "gloss", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "gloss", valIdx),
+      () => handleAddSenseField(index, "gloss"),
+      1
+    );
 
-    const coreGrid = document.createElement("div");
-    coreGrid.className = "sense-core-grid";
-    coreGrid.appendChild(grammaticalCategoryGroup);
-    coreGrid.appendChild(glossGroup);
-
-    senseBody.appendChild(coreGrid);
-
-    const definitionGroup = document.createElement("div");
-    definitionGroup.className = "form-group";
-    const definitionLabel = document.createElement("label");
-    definitionLabel.textContent = "Definition";
-    const definitionInput = document.createElement("input");
-    definitionInput.type = "text";
-    definitionInput.className = "definition";
-    definitionInput.value = getFirstElanText((sense as any)["definition"]);
-    definitionInput.oninput = updateEntryFromForm;
-    definitionGroup.appendChild(definitionLabel);
-    definitionGroup.appendChild(definitionInput);
-    senseBody.appendChild(definitionGroup);
+    // Definition (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Definition",
+      "definition",
+      (sense as any)["definition"],
+      (valIdx, value) => handleSenseFieldChange(index, "definition", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "definition", valIdx),
+      () => handleAddSenseField(index, "definition")
+    );
 
     // Custom sense-level fields
     renderCustomSenseFields(sense, senseBody, index);

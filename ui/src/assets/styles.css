@@ -89,6 +89,8 @@ body {
 .variant-group,
 .phonetic-group,
 .note-group,
+.gloss-group,
+.definition-group,
 .custom-field,
 .tree-item-content {
   display: flex;
@@ -494,6 +496,8 @@ textarea:focus-visible,
 .variants-section,
 .phonetic-section,
 .note-section,
+.gloss-section,
+.definition-section,
 .sense-section,
 .metadata-details,
 .custom-field-group {
@@ -504,7 +508,9 @@ textarea:focus-visible,
 
 .variants-section,
 .phonetic-section,
-.note-section {
+.note-section,
+.gloss-section,
+.definition-section {
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -514,6 +520,8 @@ textarea:focus-visible,
 .variants-list,
 .phonetic-list,
 .note-list,
+.gloss-list,
+.definition-list,
 .entry-custom-fields,
 .senses-section {
   display: flex;
@@ -538,13 +546,17 @@ textarea:focus-visible,
 
 .variant-group,
 .phonetic-group,
-.note-group {
+.note-group,
+.gloss-group,
+.definition-group {
   gap: var(--space-sm);
 }
 
 .variant-input,
 .phonetic-input,
 .note-input,
+.gloss-input,
+.definition-input,
 .custom-field-input,
 .sort-order-input,
 .form-group input,
@@ -569,8 +581,8 @@ textarea {
 .phonetic-input,
 .note-input,
 .grammatical-category,
-.gloss,
-.definition,
+.gloss-input,
+.definition-input,
 .sense-summary,
 .entry-lexical-unit {
   font-family: var(--font-linguistic);
