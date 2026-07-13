@@ -607,7 +607,7 @@ function renderCustomSenseFields(
   });
 
   // Add ad-hoc fields on sense not in header
-  const standardFields = ["$", "grammatical-category", "gloss", "definition"];
+  const standardFields = ["$", "grammatical-category", "gloss", "definition", "comment", "internal-note"];
   Object.keys(sense).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
