@@ -24,8 +24,35 @@ interface FieldGroup {
   fields: string[];
 }
 
+interface RecordListDescriptor {
+  type: "record-list";
+  description?: string;
+  recordSeparator: string;
+  recordDelimiters: [string, string];
+  pairSeparator: string;
+  kvSeparator: string;
+  keyOrder: string[];
+  columnLabels?: Record<string, string>;
+  groupBy?: string;
+  render: string;
+}
+
+interface KeyedListDescriptor {
+  type: "keyed-list";
+  description?: string;
+  recordSeparator: string;
+  recordDelimiters: [string, string];
+  kvSeparator: string;
+  keyLabel: string;
+  valueLabel: string;
+  render: string;
+}
+
+type FieldDescriptor = RecordListDescriptor | KeyedListDescriptor;
+
 interface ViewConfig {
   "field-groups"?: FieldGroup[];
+  parsers?: Record<string, FieldDescriptor>;
 }
 
 export interface EntryEditorOptions {
@@ -595,6 +622,173 @@ function updateEntryFromForm() {
   refreshAutocompleteOptions();
 }
 
+function parseRecordList(rawValue: string, desc: RecordListDescriptor): Record<string, string>[] {
+  if (!rawValue || !rawValue.trim()) return [];
+  const recordStrings = rawValue.split(desc.recordSeparator).map((s) => s.trim());
+  const rows: Record<string, string>[] = [];
+
+  for (const recordStr of recordStrings) {
+    let inner = recordStr;
+    const open = desc.recordDelimiters[0];
+    const close = desc.recordDelimiters[1];
+    if (inner.startsWith(open)) inner = inner.slice(open.length);
+    if (inner.endsWith(close)) inner = inner.slice(0, -close.length);
+    inner = inner.trim();
+
+    const pairs: Record<string, string> = {};
+    for (let i = 0; i < desc.keyOrder.length; i++) {
+      const key = desc.keyOrder[i];
+      const prefix = key + desc.kvSeparator;
+      const startIdx = inner.indexOf(prefix);
+      if (startIdx === -1) {
+        pairs[key] = "";
+        continue;
+      }
+      const valueStart = startIdx + prefix.length;
+      if (i + 1 < desc.keyOrder.length) {
+        const nextPrefix = desc.keyOrder[i + 1] + desc.kvSeparator;
+        const endIdx = inner.indexOf(nextPrefix, valueStart);
+        if (endIdx === -1) {
+          pairs[key] = inner.slice(valueStart).trim();
+        } else {
+          pairs[key] = inner.slice(valueStart, endIdx).trim();
+        }
+      } else {
+        pairs[key] = inner.slice(valueStart).trim();
+      }
+    }
+    rows.push(pairs);
+  }
+  return rows;
+}
+
+function parseKeyedList(rawValue: string, desc: KeyedListDescriptor): { key: string; value: string }[] {
+  if (!rawValue || !rawValue.trim()) return [];
+  const recordStrings = rawValue.split(desc.recordSeparator).map((s) => s.trim());
+  const rows: { key: string; value: string }[] = [];
+
+  for (const recordStr of recordStrings) {
+    let inner = recordStr;
+    const open = desc.recordDelimiters[0];
+    const close = desc.recordDelimiters[1];
+    if (inner.startsWith(open)) inner = inner.slice(open.length);
+    if (inner.endsWith(close)) inner = inner.slice(0, -close.length);
+    inner = inner.trim();
+
+    const sepIdx = inner.indexOf(desc.kvSeparator);
+    if (sepIdx === -1) continue;
+    const key = inner.slice(0, sepIdx).trim();
+    const value = inner.slice(sepIdx + desc.kvSeparator.length).trim();
+    rows.push({ key, value });
+  }
+  return rows;
+}
+
+function renderRecordListTable(rawValue: string, desc: RecordListDescriptor): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "parser-field-wrapper";
+
+  const rows = parseRecordList(rawValue, desc);
+  if (rows.length === 0) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "parser-no-data";
+    placeholder.textContent = "No data";
+    wrapper.appendChild(placeholder);
+    return wrapper;
+  }
+
+  const table = document.createElement("table");
+  table.className = "parser-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const key of desc.keyOrder) {
+    const th = document.createElement("th");
+    th.textContent = (desc.columnLabels && desc.columnLabels[key]) || key;
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  let lastGroupValue: string | null = null;
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    if (desc.groupBy) {
+      const groupValue = row[desc.groupBy] || "";
+      if (groupValue !== lastGroupValue) {
+        tr.className = "parser-group-start";
+        lastGroupValue = groupValue;
+      }
+    }
+    for (const key of desc.keyOrder) {
+      const td = document.createElement("td");
+      td.textContent = row[key] || "";
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  return wrapper;
+}
+
+function renderKeyedListTable(rawValue: string, desc: KeyedListDescriptor): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "parser-field-wrapper";
+
+  const rows = parseKeyedList(rawValue, desc);
+  if (rows.length === 0) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "parser-no-data";
+    placeholder.textContent = "No data";
+    wrapper.appendChild(placeholder);
+    return wrapper;
+  }
+
+  const table = document.createElement("table");
+  table.className = "parser-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const thKey = document.createElement("th");
+  thKey.textContent = desc.keyLabel;
+  const thValue = document.createElement("th");
+  thValue.textContent = desc.valueLabel;
+  headerRow.appendChild(thKey);
+  headerRow.appendChild(thValue);
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    const tdKey = document.createElement("td");
+    tdKey.textContent = row.key;
+    const tdValue = document.createElement("td");
+    tdValue.textContent = row.value;
+    tr.appendChild(tdKey);
+    tr.appendChild(tdValue);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  return wrapper;
+}
+
+function renderParsedField(fieldName: string, rawValue: string): HTMLElement | null {
+  if (!viewConfig || !viewConfig.parsers) return null;
+  const desc = viewConfig.parsers[fieldName];
+  if (!desc) return null;
+
+  if (desc.type === "record-list") {
+    return renderRecordListTable(rawValue, desc);
+  } else if (desc.type === "keyed-list") {
+    return renderKeyedListTable(rawValue, desc);
+  }
+  return null;
+}
+
 function applyFieldGroups(container: HTMLElement) {
   if (!viewConfig || !viewConfig["field-groups"]) return;
   for (const group of viewConfig["field-groups"]) {
@@ -667,7 +861,7 @@ function renderCustomEntryFields() {
     customName?: string
   ) => {
     const id = `custom_${displayName}`;
-    const existing = container.querySelector(`#${id}`);
+    const existing = container.querySelector(`#custom_${CSS.escape(displayName)}`);
     if (existing) return;
 
     const formGroup = document.createElement("div");
@@ -677,17 +871,23 @@ function renderCustomEntryFields() {
     const label = document.createElement("label");
     label.textContent = displayName.replace(/_/g, " ");
 
-    const input = document.createElement("input");
-    input.type = "text";
-    input.id = id;
-    input.className = "custom-field-input";
-    input.dataset.fieldName = fieldName;
-    if (customName) input.dataset.customName = customName;
-    input.value = value || "";
-    input.oninput = () => updateEntryFromForm();
+    const parsed = renderParsedField(displayName, value);
+    if (parsed) {
+      formGroup.appendChild(label);
+      formGroup.appendChild(parsed);
+    } else {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.id = id;
+      input.className = "custom-field-input";
+      input.dataset.fieldName = fieldName;
+      if (customName) input.dataset.customName = customName;
+      input.value = value || "";
+      input.oninput = () => updateEntryFromForm();
 
-    formGroup.appendChild(label);
-    formGroup.appendChild(input);
+      formGroup.appendChild(label);
+      formGroup.appendChild(input);
+    }
     container.appendChild(formGroup);
   };
 

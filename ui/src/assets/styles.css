@@ -1069,3 +1069,42 @@ textarea,
 .field-group-details[open] > summary {
   margin-bottom: var(--space-md);
 }
+
+.parser-field-wrapper {
+  overflow-x: auto;
+}
+
+.parser-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.parser-table th,
+.parser-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--app-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.parser-table th {
+  background: var(--app-surface-raised);
+  font-weight: var(--text-weight-medium, 600);
+  white-space: nowrap;
+}
+
+.parser-table td {
+  font-family: var(--font-linguistic);
+}
+
+.parser-table tbody tr.parser-group-start {
+  border-top: 2px solid var(--app-border-strong);
+}
+
+.parser-no-data {
+  color: var(--app-text-muted, #888);
+  font-style: italic;
+  font-size: var(--text-sm);
+  margin: 0;
+}
