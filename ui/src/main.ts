@@ -380,9 +380,23 @@ function handleLexiconChange() {
     console.log("handleLexiconChange called");
     // alert("DEBUG: Lexicon Changed!"); // Uncomment if needed, but let's try indicator first
     setIsModified(true);
-    renderEntries();
+    scheduleRenderEntries();
 
     updateActionAvailability();
+}
+
+// Editor fields fire handleLexiconChange on every keystroke, and rebuilding
+// the full table DOM per keystroke is expensive for large lexicons. Coalesce
+// re-renders: the table updates shortly after typing pauses. renderEntries
+// reads current state when it runs, so a pending render is always consistent.
+let renderEntriesTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleRenderEntries() {
+    if (renderEntriesTimer) clearTimeout(renderEntriesTimer);
+    renderEntriesTimer = setTimeout(() => {
+        renderEntriesTimer = null;
+        renderEntries();
+    }, 200);
 }
 
 // Re-renders the entry table, applying the active search filter (if any).

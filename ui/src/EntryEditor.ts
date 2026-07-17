@@ -410,6 +410,18 @@ function refreshAutocompleteOptions() {
   );
 }
 
+// refreshAutocompleteOptions scans the whole lexicon; debounce it so it does
+// not run on every keystroke while typing in entry fields.
+let autocompleteRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutocompleteRefresh() {
+  if (autocompleteRefreshTimer) clearTimeout(autocompleteRefreshTimer);
+  autocompleteRefreshTimer = setTimeout(() => {
+    autocompleteRefreshTimer = null;
+    refreshAutocompleteOptions();
+  }, 400);
+}
+
 export function setViewConfig(config: ViewConfig | null) {
   viewConfig = config;
 }
@@ -754,7 +766,7 @@ function updateEntryFromForm() {
   // Update the heading when lexical unit changes
   updateEntryHeading();
   markChanged();
-  refreshAutocompleteOptions();
+  scheduleAutocompleteRefresh();
 }
 
 function parseRecordList(rawValue: string, desc: RecordListDescriptor): Record<string, string>[] {
