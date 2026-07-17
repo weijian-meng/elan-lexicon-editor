@@ -46,6 +46,8 @@ interface KeyedListDescriptor {
   keyLabel: string;
   valueLabel: string;
   render: string;
+  attachTo?: string;
+  editable?: boolean;
 }
 
 type FieldDescriptor = RecordListDescriptor | KeyedListDescriptor;
@@ -181,6 +183,94 @@ function setNoteArray(entry: LexiconEntry, notes: any[]) {
   }
 }
 
+function serializeKeyedList(rows: { key: string; value: string }[], desc: KeyedListDescriptor): string {
+  return rows
+    .map((row) => `${desc.recordDelimiters[0]}${row.key}${desc.kvSeparator} ${row.value}${desc.recordDelimiters[1]}`)
+    .join(desc.recordSeparator);
+}
+
+function getAttachedMetadataDescriptors(structuralField: string): KeyedListDescriptor[] {
+  if (!viewConfig || !viewConfig.parsers) return [];
+  return Object.values(viewConfig.parsers).filter(
+    (d): d is KeyedListDescriptor =>
+      d.type === "keyed-list" && d.attachTo === structuralField
+  );
+}
+
+function getMetadataValueForForm(desc: KeyedListDescriptor, formKey: string): string {
+  if (!selectedEntry || !selectedEntry.field) return "";
+  const rawValue = getNamedFieldText(selectedEntry.field, getMetadataFieldName(desc));
+  const rows = parseKeyedList(rawValue, desc);
+  const row = rows.find((r) => r.key === formKey);
+  return row ? row.value : "";
+}
+
+function getMetadataFieldName(desc: KeyedListDescriptor): string {
+  if (!viewConfig || !viewConfig.parsers) return "";
+  for (const [name, d] of Object.entries(viewConfig.parsers)) {
+    if (d === desc) return name;
+  }
+  return "";
+}
+
+function syncMetadataKeys(
+  structuralField: string,
+  oldKey: string | null,
+  newKey: string | null,
+  index: number
+): void {
+  if (!selectedEntry) return;
+  const descs = getAttachedMetadataDescriptors(structuralField);
+  for (const desc of descs) {
+    const fieldName = getMetadataFieldName(desc);
+    if (!fieldName) continue;
+    const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
+    let rows = parseKeyedList(rawValue, desc);
+
+    if (oldKey !== null && newKey !== null) {
+      // Rename: find the row with oldKey and update its key
+      const row = rows.find((r) => r.key === oldKey);
+      if (row) {
+        row.key = newKey;
+      } else {
+        // Old key not found — insert a new row for newKey at the right position
+        rows.push({ key: newKey, value: "" });
+      }
+    } else if (oldKey !== null && newKey === null) {
+      // Remove: delete the row with oldKey
+      rows = rows.filter((r) => r.key !== oldKey);
+    } else if (oldKey === null && newKey !== null) {
+      // Add: insert a new row for newKey
+      rows.push({ key: newKey, value: "" });
+    }
+
+    const serialized = serializeKeyedList(rows, desc);
+    setNamedFieldText(selectedEntry, fieldName, serialized);
+  }
+}
+
+function handleMetadataChange(
+  structuralField: string,
+  formKey: string,
+  desc: KeyedListDescriptor,
+  value: string
+): void {
+  if (!selectedEntry) return;
+  const fieldName = getMetadataFieldName(desc);
+  if (!fieldName) return;
+  const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
+  const rows = parseKeyedList(rawValue, desc);
+  const row = rows.find((r) => r.key === formKey);
+  if (row) {
+    row.value = value;
+  } else {
+    rows.push({ key: formKey, value });
+  }
+  const serialized = serializeKeyedList(rows, desc);
+  setNamedFieldText(selectedEntry, fieldName, serialized);
+  markChanged();
+}
+
 function fillMultiFieldContainer(
   container: HTMLElement,
   values: any,
@@ -188,13 +278,18 @@ function fillMultiFieldContainer(
   groupClassName: string,
   onChange: (index: number, value: string) => void,
   onRemove: (index: number) => void,
-  minItems?: number
+  minItems?: number,
+  structuralField?: string
 ): void {
   container.innerHTML = "";
   const items = toElanTextArray(values);
+  const attachedDescs = structuralField ? getAttachedMetadataDescriptors(structuralField) : [];
   items.forEach((item, index) => {
     const group = document.createElement("div");
     group.className = groupClassName;
+
+    const inputRow = document.createElement("div");
+    inputRow.className = "multi-field-input-row";
 
     const input = document.createElement("input");
     input.type = "text";
@@ -212,8 +307,40 @@ function fillMultiFieldContainer(
     }
     removeButton.onclick = () => onRemove(index);
 
-    group.appendChild(input);
-    group.appendChild(removeButton);
+    inputRow.appendChild(input);
+    inputRow.appendChild(removeButton);
+    group.appendChild(inputRow);
+
+    // Render attached metadata inline
+    if (attachedDescs.length > 0) {
+      const formKey = getElanText(item);
+      const metaContainer = document.createElement("div");
+      metaContainer.className = "metadata-inline-container";
+      for (const desc of attachedDescs) {
+        const metaRow = document.createElement("div");
+        metaRow.className = "metadata-row";
+
+        const metaLabel = document.createElement("label");
+        metaLabel.className = "metadata-label";
+        metaLabel.textContent = desc.valueLabel;
+
+        const metaInput = document.createElement("input");
+        metaInput.type = "text";
+        metaInput.className = "metadata-input";
+        metaInput.value = getMetadataValueForForm(desc, formKey);
+        metaInput.readOnly = !desc.editable;
+        if (desc.editable) {
+          metaInput.oninput = (e) =>
+            handleMetadataChange(structuralField!, formKey, desc, (e.target as HTMLInputElement).value);
+        }
+
+        metaRow.appendChild(metaLabel);
+        metaRow.appendChild(metaInput);
+        metaContainer.appendChild(metaRow);
+      }
+      group.appendChild(metaContainer);
+    }
+
     container.appendChild(group);
   });
 }
@@ -226,7 +353,8 @@ function appendMultiFieldSection(
   onChange: (index: number, value: string) => void,
   onRemove: (index: number) => void,
   onAdd: () => void,
-  minItems?: number
+  minItems?: number,
+  structuralField?: string
 ): void {
   const section = document.createElement("div");
   section.className = `${fieldKey}-section`;
@@ -261,7 +389,8 @@ function appendMultiFieldSection(
     `${fieldKey}-group`,
     onChange,
     onRemove,
-    minItems
+    minItems,
+    structuralField
   );
 }
 
@@ -421,6 +550,7 @@ function handleAddVariant() {
   const variants = toElanTextArray(selectedEntry.variant);
   variants.push("");
   setVariantArray(selectedEntry, variants);
+  syncMetadataKeys("variant", null, "", variants.length - 1);
   renderEntryForm();
   markChanged();
 }
@@ -447,6 +577,7 @@ function handleAddPhonetic() {
   const phonetics = toElanTextArray(selectedEntry.phonetic);
   phonetics.push("");
   setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", null, "", phonetics.length - 1);
   renderEntryForm();
   markChanged();
 }
@@ -454,8 +585,10 @@ function handleAddPhonetic() {
 function handleRemovePhonetic(index: number) {
   if (!selectedEntry || !selectedEntry.phonetic) return;
   const phonetics = toElanTextArray(selectedEntry.phonetic);
+  const removedKey = getElanText(phonetics[index]);
   phonetics.splice(index, 1);
   setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", removedKey, null, index);
   renderEntryForm();
   markChanged();
 }
@@ -463,8 +596,10 @@ function handleRemovePhonetic(index: number) {
 function handlePhoneticChange(index: number, value: string) {
   if (!selectedEntry) return;
   const phonetics = toElanTextArray(selectedEntry.phonetic);
+  const oldKey = getElanText(phonetics[index]);
   setElanTextAt(phonetics, index, value);
   setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", oldKey, value, index);
   updateEntryFromForm();
 }
 
@@ -854,12 +989,20 @@ function renderCustomEntryFields() {
     return getFirstElanText(val);
   };
 
+  const isAttachedField = (name: string): boolean => {
+    if (!viewConfig || !viewConfig.parsers) return false;
+    const desc = viewConfig.parsers[name];
+    return !!(desc && desc.type === "keyed-list" && desc.attachTo);
+  };
+
   const appendField = (
     displayName: string,
     fieldName: string,
     value: string,
     customName?: string
   ) => {
+    if (isAttachedField(displayName)) return;
+
     const id = `custom_${displayName}`;
     const existing = container.querySelector(`#custom_${CSS.escape(displayName)}`);
     if (existing) return;
@@ -1117,7 +1260,9 @@ function renderEntryForm() {
       "variant-input",
       "variant-group",
       handleVariantChange,
-      handleRemoveVariant
+      handleRemoveVariant,
+      undefined,
+      "variant"
     );
   }
 
@@ -1129,7 +1274,9 @@ function renderEntryForm() {
       "phonetic-input",
       "phonetic-group",
       handlePhoneticChange,
-      handleRemovePhonetic
+      handleRemovePhonetic,
+      undefined,
+      "phonetic"
     );
   }
 

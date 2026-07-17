@@ -1108,3 +1108,40 @@ textarea,
   font-size: var(--text-sm);
   margin: 0;
 }
+
+.multi-field-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.metadata-inline-container {
+  margin-left: var(--space-md);
+  margin-top: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.metadata-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.metadata-label {
+  flex: 0 0 auto;
+  min-width: 5rem;
+  font-size: var(--text-sm);
+  color: var(--app-text-muted, #888);
+}
+
+.metadata-input {
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+}
+
+.metadata-input:read-only {
+  background: var(--app-surface-raised);
+  color: var(--app-text-muted, #888);
+}
