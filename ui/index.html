@@ -30,7 +30,21 @@
                 <div class="pane-header">
                     <h2>Entries</h2>
                     <div class="pane-tools">
-                        <input class="search-input" type="text" id="searchInput" placeholder="Search lexical units" />
+                        <div class="search-box">
+                            <input class="search-input" type="text" id="searchInput" placeholder="Search entries" />
+                            <button class="search-toggle" id="searchRegexToggle" type="button"
+                                title="Match by regular expression" aria-pressed="false">.*</button>
+                            <button class="search-toggle" id="searchFieldsBtn" type="button"
+                                title="Choose fields to search" aria-pressed="false">Fields</button>
+                            <div id="searchFieldsPopover" class="search-popover hidden">
+                                <div class="search-popover-title">Search in fields</div>
+                                <label class="search-field-all">
+                                    <input type="checkbox" id="searchFieldAll" checked />
+                                    <span>All fields</span>
+                                </label>
+                                <div id="searchFieldsList" class="search-fields-list"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="panel-content">

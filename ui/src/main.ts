@@ -7,8 +7,9 @@ import * as EntryEditor from "./EntryEditor";
 import * as ConfigDialog from "./ConfigDialog";
 import * as DisplayOptions from "./DisplayOptions";
 import * as DiffViewer from "./DiffViewer";
+import * as SearchBar from "./SearchBar";
 import { LexiconEntry } from "./LexiconTable";
-import { getElanTextValues, getFirstElanText } from "./elanText";
+import { getFirstElanText } from "./elanText";
 
 // Styles
 import "./assets/design-tokens.css";
@@ -20,6 +21,8 @@ let currentLexicon: any = null;
 let currentFilePath: string | null = null;
 let isModified = false;
 let selectedEntry: LexiconEntry | null = null;
+// Active entry-list filter from the search bar (null = show all entries)
+let entryFilter: SearchBar.EntryMatcher | null = null;
 // Idempotent init flag (modal DOM is static; listeners attach once)
 let initialized = false;
 
@@ -34,7 +37,6 @@ const actionRefs: {
     displayOptionsBtn?: HTMLButtonElement | null;
     addEntryBtn?: HTMLButtonElement | null;
     removeEntryBtn?: HTMLButtonElement | null;
-    searchInput?: HTMLInputElement | null;
     emptySelectionText?: HTMLElement | null;
     statusFilePath?: HTMLElement | null;
     statusRecordCount?: HTMLElement | null;
@@ -217,7 +219,7 @@ function updateActionAvailability() {
     if (actionRefs.addEntryBtn) actionRefs.addEntryBtn.disabled = !hasLexicon;
     if (actionRefs.removeEntryBtn)
         actionRefs.removeEntryBtn.disabled = !hasLexicon || !hasSelection;
-    if (actionRefs.searchInput) actionRefs.searchInput.disabled = !hasLexicon;
+    SearchBar.setEnabled(hasLexicon);
 
     if (actionRefs.emptySelectionText) {
         actionRefs.emptySelectionText.textContent = hasLexicon
@@ -259,14 +261,8 @@ function init() {
     });
 
     DisplayOptions.init({
-        onApply: (config) => {
-            LexiconTable.render(
-                currentLexicon ? currentLexicon.entry || [] : [],
-                selectedEntry ? selectedEntry.$.id : null,
-                {
-                    sortOrder: getSortOrder(),
-                }
-            );
+        onApply: () => {
+            renderEntries();
         },
     });
 
@@ -274,6 +270,11 @@ function init() {
         getLexicon: () => currentLexicon,
         getCurrentFile: () => currentFilePath,
         onChange: handleLexiconChange,
+    });
+
+    SearchBar.init({
+        getLexicon: () => currentLexicon,
+        onFilterChange: handleFilterChange,
     });
 
     // Global event listeners
@@ -299,8 +300,6 @@ function init() {
     actionRefs.removeEntryBtn = removeEntryBtn;
     actionRefs.emptySelectionText = document.getElementById("emptySelectionText");
 
-    const searchInput = document.getElementById("searchInput") as HTMLInputElement | null;
-    actionRefs.searchInput = searchInput;
     actionRefs.statusFilePath = document.getElementById("statusFilePath");
     actionRefs.statusRecordCount = document.getElementById("statusRecordCount");
     actionRefs.statusModified = document.getElementById("statusModified");
@@ -351,12 +350,6 @@ function init() {
     if (addEntryBtn) addEntryBtn.addEventListener("click", handleNewEntry);
     if (removeEntryBtn) removeEntryBtn.addEventListener("click", handleRemoveEntry);
 
-    if (searchInput) {
-        searchInput.addEventListener("input", (e) => {
-            handleSearch((e.target as HTMLInputElement).value);
-        });
-    }
-
     initPanelResizer();
 
     // Initial landing state: only New/Open enabled
@@ -387,15 +380,27 @@ function handleLexiconChange() {
     console.log("handleLexiconChange called");
     // alert("DEBUG: Lexicon Changed!"); // Uncomment if needed, but let's try indicator first
     setIsModified(true);
-    LexiconTable.render(
-        currentLexicon ? currentLexicon.entry || [] : [],
-        selectedEntry ? selectedEntry.$.id : null,
-        {
-            sortOrder: getSortOrder(),
-        }
-    );
+    renderEntries();
 
     updateActionAvailability();
+}
+
+// Re-renders the entry table, applying the active search filter (if any).
+function renderEntries() {
+    const entries =
+        currentLexicon && Array.isArray(currentLexicon.entry)
+            ? currentLexicon.entry
+            : [];
+    const toShow = entryFilter ? entries.filter(entryFilter) : entries;
+
+    LexiconTable.render(toShow, selectedEntry ? selectedEntry.$.id : null, {
+        sortOrder: getSortOrder(),
+    });
+}
+
+function handleFilterChange(matcher: SearchBar.EntryMatcher | null) {
+    entryFilter = matcher;
+    renderEntries();
 }
 
 function setIsModified(modified: boolean) {
@@ -453,7 +458,8 @@ async function handleCreateNewLexicon() {
         EntryEditor.clear();
         setIsModified(true);
 
-        LexiconTable.render(currentLexicon.entry, null, { sortOrder: "" });
+        SearchBar.reset();
+        renderEntries();
 
         handleCancelNewLexicon();
 
@@ -485,7 +491,8 @@ function performCloseFile() {
     EntryEditor.clear();
     setIsModified(false);
 
-    LexiconTable.render([], null, { sortOrder: "" });
+    SearchBar.reset();
+    renderEntries();
 
     updateActionAvailability();
 }
@@ -551,9 +558,8 @@ async function handleOpenFile() {
             EntryEditor.clear();
             setIsModified(false);
 
-            LexiconTable.render(currentLexicon.entry, null, {
-                sortOrder: getSortOrder(),
-            });
+            SearchBar.reset();
+            renderEntries();
 
             updateActionAvailability();
         } else {
@@ -620,41 +626,4 @@ function handleNewEntry() {
     handleLexiconChange();
 }
 
-function handleSearch(query: string) {
-    if (!currentLexicon || !currentLexicon.entry) return;
-    const q = query.toLowerCase();
 
-    const filtered = currentLexicon.entry.filter((e: any) => {
-        return getSearchTextValues(e).some((text) =>
-            text.toLowerCase().includes(q)
-        );
-    });
-
-    // If query is empty, show all
-    const toShow = q ? filtered : currentLexicon.entry;
-
-    LexiconTable.render(toShow, selectedEntry ? selectedEntry.$.id : null, {
-        sortOrder: getSortOrder(),
-    });
-}
-
-function getSearchTextValues(entry: any): string[] {
-    const values: string[] = [];
-    if (!entry || typeof entry !== "object") return values;
-
-    Object.keys(entry).forEach((key) => {
-        if (key === "$" || key === "sense") return;
-        values.push(...getElanTextValues(entry[key]));
-    });
-
-    const senses = Array.isArray(entry.sense) ? entry.sense : entry.sense ? [entry.sense] : [];
-    senses.forEach((sense: any) => {
-        if (!sense || typeof sense !== "object") return;
-        Object.keys(sense).forEach((key) => {
-            if (key === "$") return;
-            values.push(...getElanTextValues(sense[key]));
-        });
-    });
-
-    return values.map((text) => text.trim()).filter(Boolean);
-}
