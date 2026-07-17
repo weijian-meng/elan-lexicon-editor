@@ -32,8 +32,12 @@
                     <div class="pane-tools">
                         <div class="search-box">
                             <input class="search-input" type="text" id="searchInput" placeholder="Search entries" />
+                            <button class="search-toggle" id="searchCaseToggle" type="button"
+                                title="Match case" aria-pressed="false">Aa</button>
                             <button class="search-toggle" id="searchRegexToggle" type="button"
                                 title="Match by regular expression" aria-pressed="false">.*</button>
+                            <button class="search-toggle" id="searchWordToggle" type="button"
+                                title="Match whole word" aria-pressed="false">W</button>
                             <button class="search-toggle" id="searchFieldsBtn" type="button"
                                 title="Choose fields to search" aria-pressed="false">Fields</button>
                             <div id="searchFieldsPopover" class="search-popover hidden">

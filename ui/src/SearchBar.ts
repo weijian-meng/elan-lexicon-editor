@@ -1,5 +1,5 @@
-// Search bar controller: free-text query with optional regex matching and
-// per-field scoping for the entry list filter.
+// Search bar controller: free-text query with optional case-sensitive,
+// whole-word, and regex matching, plus per-field scoping for the entry list filter.
 
 import { getElanTextValues } from "./elanText";
 
@@ -29,7 +29,9 @@ const KNOWN_FIELD_LABELS: Record<string, string> = {
 const KNOWN_FIELD_ORDER = Object.keys(KNOWN_FIELD_LABELS);
 
 let inputEl: HTMLInputElement | null = null;
+let caseToggleEl: HTMLButtonElement | null = null;
 let regexToggleEl: HTMLButtonElement | null = null;
+let wordToggleEl: HTMLButtonElement | null = null;
 let fieldsBtnEl: HTMLButtonElement | null = null;
 let popoverEl: HTMLElement | null = null;
 let allFieldsCheckboxEl: HTMLInputElement | null = null;
@@ -39,7 +41,9 @@ let getLexiconFn: (() => any) | null = null;
 let onFilterChangeFn: ((matcher: EntryMatcher | null) => void) | null = null;
 
 let query = "";
+let caseSensitive = false;
 let useRegex = false;
+let wholeWord = false;
 let allFields = true;
 // Field names selected for scoped search. Only used when `allFields` is false.
 // Field names are matched at both entry and sense level (e.g. a "note"
@@ -52,8 +56,14 @@ export function init(config: SearchBarConfig) {
   if (isInitialized) return;
 
   inputEl = document.getElementById("searchInput") as HTMLInputElement | null;
+  caseToggleEl = document.getElementById(
+    "searchCaseToggle"
+  ) as HTMLButtonElement | null;
   regexToggleEl = document.getElementById(
     "searchRegexToggle"
+  ) as HTMLButtonElement | null;
+  wordToggleEl = document.getElementById(
+    "searchWordToggle"
   ) as HTMLButtonElement | null;
   fieldsBtnEl = document.getElementById(
     "searchFieldsBtn"
@@ -66,7 +76,9 @@ export function init(config: SearchBarConfig) {
 
   if (
     !inputEl ||
+    !caseToggleEl ||
     !regexToggleEl ||
+    !wordToggleEl ||
     !fieldsBtnEl ||
     !popoverEl ||
     !allFieldsCheckboxEl ||
@@ -94,9 +106,23 @@ export function init(config: SearchBarConfig) {
     }
   });
 
+  caseToggleEl.addEventListener("click", () => {
+    caseSensitive = !caseSensitive;
+    syncCaseToggle();
+    notifyFilterChange();
+    inputEl!.focus();
+  });
+
   regexToggleEl.addEventListener("click", () => {
     useRegex = !useRegex;
     syncRegexToggle();
+    notifyFilterChange();
+    inputEl!.focus();
+  });
+
+  wordToggleEl.addEventListener("click", () => {
+    wholeWord = !wholeWord;
+    syncWordToggle();
     notifyFilterChange();
     inputEl!.focus();
   });
@@ -118,7 +144,9 @@ export function init(config: SearchBarConfig) {
   });
 
   isInitialized = true;
+  syncCaseToggle();
   syncRegexToggle();
+  syncWordToggle();
   syncFieldsButton();
 }
 
@@ -126,11 +154,15 @@ export function init(config: SearchBarConfig) {
 export function reset() {
   if (!isInitialized) return;
   query = "";
+  caseSensitive = false;
   useRegex = false;
+  wholeWord = false;
   allFields = true;
   selectedFields = new Set<string>();
   if (inputEl) inputEl.value = "";
+  syncCaseToggle();
   syncRegexToggle();
+  syncWordToggle();
   syncFieldsButton();
   closePopover();
   notifyFilterChange();
@@ -139,18 +171,29 @@ export function reset() {
 export function setEnabled(enabled: boolean) {
   if (!isInitialized) return;
   if (inputEl) inputEl.disabled = !enabled;
+  if (caseToggleEl) caseToggleEl.disabled = !enabled;
   if (regexToggleEl) regexToggleEl.disabled = !enabled;
+  if (wordToggleEl) wordToggleEl.disabled = !enabled;
   if (fieldsBtnEl) fieldsBtnEl.disabled = !enabled;
   if (!enabled) closePopover();
 }
 
+function syncCaseToggle() {
+  if (!caseToggleEl) return;
+  caseToggleEl.classList.toggle("active", caseSensitive);
+  caseToggleEl.setAttribute("aria-pressed", caseSensitive ? "true" : "false");
+}
+
 function syncRegexToggle() {
-  if (!regexToggleEl || !inputEl) return;
+  if (!regexToggleEl) return;
   regexToggleEl.classList.toggle("active", useRegex);
   regexToggleEl.setAttribute("aria-pressed", useRegex ? "true" : "false");
-  inputEl.placeholder = useRegex
-    ? "Search entries (regex)"
-    : "Search entries";
+}
+
+function syncWordToggle() {
+  if (!wordToggleEl) return;
+  wordToggleEl.classList.toggle("active", wholeWord);
+  wordToggleEl.setAttribute("aria-pressed", wholeWord ? "true" : "false");
 }
 
 function syncFieldsButton() {
@@ -275,22 +318,24 @@ function notifyFilterChange() {
 
   if (query) {
     const fields = allFields ? null : selectedFields;
-    if (useRegex) {
-      try {
-        const re = new RegExp(query, "i");
-        matcher = (entry) =>
-          getSearchTextValues(entry, fields).some((text) => re.test(text));
-      } catch {
-        // Pattern is invalid (common mid-typing): keep the list unfiltered
-        // and flag the input instead of hiding all entries.
-        invalidPattern = true;
-      }
-    } else {
-      const q = query.toLowerCase();
+
+    let pattern = useRegex
+      ? query
+      : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    if (wholeWord) {
+      pattern = `\\b(?:${pattern})\\b`;
+    }
+
+    const flags = caseSensitive ? "" : "i";
+    try {
+      const re = new RegExp(pattern, flags);
       matcher = (entry) =>
-        getSearchTextValues(entry, fields).some((text) =>
-          text.toLowerCase().includes(q)
-        );
+        getSearchTextValues(entry, fields).some((text) => re.test(text));
+    } catch {
+      // Pattern is invalid (common mid-typing): keep the list unfiltered
+      // and flag the input instead of hiding all entries.
+      invalidPattern = true;
     }
   }
 
