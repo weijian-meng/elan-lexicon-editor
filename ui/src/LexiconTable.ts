@@ -128,7 +128,7 @@ export function init(opts: {
   headerRowEl =
     opts && opts.headerRow
       ? opts.headerRow
-      : document.querySelector(".table-header thead tr");
+      : document.querySelector(".lexicon-table thead tr");
   onSelect =
     opts && typeof opts.onSelect === "function" ? opts.onSelect : null;
 

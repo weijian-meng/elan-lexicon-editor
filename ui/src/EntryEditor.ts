@@ -343,6 +343,34 @@ function fillMultiFieldContainer(
 
     container.appendChild(group);
   });
+
+  syncOptionalSectionEmptyState(container);
+}
+
+// Toggle compact "empty section" treatment for optional sections. When the
+// list is empty, the section collapses to a header + short empty hint; when
+// populated, the full card style applies. Sections without the
+// `optional-section` marker (e.g. Variants, Gloss) are left unchanged.
+function syncOptionalSectionEmptyState(container: HTMLElement): void {
+  const section = container.parentElement as HTMLElement | null;
+  if (!section || !section.classList.contains("optional-section")) return;
+
+  const isEmpty = container.children.length === 0;
+  section.classList.toggle("empty", isEmpty);
+
+  let hint = section.querySelector(".section-empty-hint") as HTMLElement | null;
+  if (isEmpty) {
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "section-empty-hint";
+      const labelEl = section.querySelector(".section-header .section-label") as HTMLElement | null;
+      const labelText = labelEl ? (labelEl.textContent || "").trim() : "";
+      hint.textContent = labelText ? `No ${labelText.toLowerCase()} added` : "Nothing added";
+      section.appendChild(hint);
+    }
+  } else if (hint) {
+    hint.remove();
+  }
 }
 
 function appendMultiFieldSection(
@@ -354,10 +382,12 @@ function appendMultiFieldSection(
   onRemove: (index: number) => void,
   onAdd: () => void,
   minItems?: number,
-  structuralField?: string
+  structuralField?: string,
+  optional?: boolean
 ): void {
   const section = document.createElement("div");
   section.className = `${fieldKey}-section`;
+  if (optional) section.classList.add("optional-section");
 
   const header = document.createElement("div");
   header.className = "section-header";
@@ -1433,7 +1463,10 @@ function renderEntryForm() {
       (sense as any)["definition"],
       (valIdx, value) => handleSenseFieldChange(index, "definition", valIdx, value),
       (valIdx) => handleRemoveSenseField(index, "definition", valIdx),
-      () => handleAddSenseField(index, "definition")
+      () => handleAddSenseField(index, "definition"),
+      undefined,
+      undefined,
+      true
     );
 
     // Comment (XSD: minOccurs=0, maxOccurs=unbounded)
@@ -1444,7 +1477,10 @@ function renderEntryForm() {
       (sense as any)["comment"],
       (valIdx, value) => handleSenseFieldChange(index, "comment", valIdx, value),
       (valIdx) => handleRemoveSenseField(index, "comment", valIdx),
-      () => handleAddSenseField(index, "comment")
+      () => handleAddSenseField(index, "comment"),
+      undefined,
+      undefined,
+      true
     );
 
     // Internal Note (XSD: minOccurs=0, maxOccurs=unbounded)
@@ -1455,7 +1491,10 @@ function renderEntryForm() {
       (sense as any)["internal-note"],
       (valIdx, value) => handleSenseFieldChange(index, "internal-note", valIdx, value),
       (valIdx) => handleRemoveSenseField(index, "internal-note", valIdx),
-      () => handleAddSenseField(index, "internal-note")
+      () => handleAddSenseField(index, "internal-note"),
+      undefined,
+      undefined,
+      true
     );
 
     // Custom sense-level fields

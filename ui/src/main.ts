@@ -247,6 +247,7 @@ function init() {
     // Init modules
     LexiconTable.init({
         tbody: document.getElementById("lexiconTableBody"),
+        headerRow: document.querySelector(".lexicon-table thead tr") as HTMLTableRowElement | null,
         onSelect: handleEntrySelect,
     });
 
