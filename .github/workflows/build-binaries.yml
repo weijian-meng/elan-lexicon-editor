@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -50,6 +53,12 @@ jobs:
         with:
           projectPath: .
           args: --target ${{ matrix.target }}
+          # An empty tagName keeps manually dispatched builds artifact-only.
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: "ELAN Lexicon Editor ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download the installer for your platform."
+          releaseDraft: false
+          prerelease: true
 
       - name: Upload bundles
         if: always()
