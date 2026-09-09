@@ -1093,7 +1093,9 @@ function renderCustomEntryFields() {
       return;
     }
 
-    appendField(fieldName, "field", getEntryValue("field", fieldName), fieldName);
+    // ELAN custom fields are normally stored as elements whose tag matches the
+    // declared field-spec name (for example, <devanagari>...</devanagari>).
+    appendField(fieldName, fieldName, getEntryValue(fieldName));
   });
 
   const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "note", "sense", "variant"];
@@ -1168,13 +1170,16 @@ function renderCustomSenseFields(
     input.dataset.fieldName = fieldName;
     input.dataset.senseIndex = String(senseIndex);
 
-    const customName =
-      fieldName === "field"
-        ? (field.$ && field.$.nameAttr) || field.$.name
-        : fieldName;
-    input.dataset.fieldName = "field";
-    input.dataset.customName = customName;
-    input.value = getNamedFieldText(sense.field, customName);
+    if (fieldName === "field") {
+      const customName = (field.$ && field.$.nameAttr) || field.$.name;
+      input.dataset.fieldName = "field";
+      input.dataset.customName = customName;
+      input.value = getNamedFieldText(sense.field, customName);
+    } else {
+      // As at entry level, a declared custom field is a direct child element.
+      input.dataset.fieldName = fieldName;
+      input.value = getFirstElanText(sense[fieldName]);
+    }
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
