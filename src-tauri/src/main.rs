@@ -77,6 +77,11 @@ fn save_file_command(file_path: String, content: String) -> Result<bool, String>
 }
 
 #[tauri::command]
+fn read_text_file(file_path: String) -> Result<String, String> {
+    fs::read_to_string(&file_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn set_modified(modified: bool, state: State<AppState>) -> Result<bool, String> {
     if let Ok(mut m) = state.modified.lock() {
         *m = modified;
@@ -117,6 +122,7 @@ fn main() {
             create_lexicon_command,
             save_file_dialog_command,
             save_file_command,
+            read_text_file,
             set_modified,
             diff,
             get_lexicon_from_source

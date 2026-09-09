@@ -16,6 +16,47 @@ type Lexicon = {
   entry?: LexiconEntry[];
 };
 
+interface FieldGroup {
+  id: string;
+  label: string;
+  foldable?: boolean;
+  collapsedByDefault?: boolean;
+  fields: string[];
+}
+
+interface RecordListDescriptor {
+  type: "record-list";
+  description?: string;
+  recordSeparator: string;
+  recordDelimiters: [string, string];
+  pairSeparator: string;
+  kvSeparator: string;
+  keyOrder: string[];
+  columnLabels?: Record<string, string>;
+  groupBy?: string;
+  render: string;
+}
+
+interface KeyedListDescriptor {
+  type: "keyed-list";
+  description?: string;
+  recordSeparator: string;
+  recordDelimiters: [string, string];
+  kvSeparator: string;
+  keyLabel: string;
+  valueLabel: string;
+  render: string;
+  attachTo?: string;
+  editable?: boolean;
+}
+
+type FieldDescriptor = RecordListDescriptor | KeyedListDescriptor;
+
+interface ViewConfig {
+  "field-groups"?: FieldGroup[];
+  parsers?: Record<string, FieldDescriptor>;
+}
+
 export interface EntryEditorOptions {
   getLexicon: () => Lexicon | null;
   onChange: () => void;
@@ -30,6 +71,9 @@ let selectedEntry: LexiconEntry | null = null;
 
 // Track original state for discard functionality
 let originalEntry: string | null = null;
+
+// Sidecar view config for field grouping
+let viewConfig: ViewConfig | null = null;
 
 const AUTOCOMPLETE_IDS = {
   morphType: "morphTypeOptions",
@@ -127,6 +171,259 @@ function setVariantArray(entry: LexiconEntry, variants: any[]) {
   entry.variant = variants;
 }
 
+function setPhoneticArray(entry: LexiconEntry, phonetics: any[]) {
+  entry.phonetic = phonetics;
+}
+
+function setNoteArray(entry: LexiconEntry, notes: any[]) {
+  if (notes.length > 0) {
+    entry.note = notes;
+  } else {
+    entry.note = null;
+  }
+}
+
+function serializeKeyedList(rows: { key: string; value: string }[], desc: KeyedListDescriptor): string {
+  return rows
+    .map((row) => `${desc.recordDelimiters[0]}${row.key}${desc.kvSeparator} ${row.value}${desc.recordDelimiters[1]}`)
+    .join(desc.recordSeparator);
+}
+
+function getAttachedMetadataDescriptors(structuralField: string): KeyedListDescriptor[] {
+  if (!viewConfig || !viewConfig.parsers) return [];
+  return Object.values(viewConfig.parsers).filter(
+    (d): d is KeyedListDescriptor =>
+      d.type === "keyed-list" && d.attachTo === structuralField
+  );
+}
+
+function getMetadataValueForForm(desc: KeyedListDescriptor, formKey: string): string {
+  if (!selectedEntry || !selectedEntry.field) return "";
+  const rawValue = getNamedFieldText(selectedEntry.field, getMetadataFieldName(desc));
+  const rows = parseKeyedList(rawValue, desc);
+  const row = rows.find((r) => r.key === formKey);
+  return row ? row.value : "";
+}
+
+function getMetadataFieldName(desc: KeyedListDescriptor): string {
+  if (!viewConfig || !viewConfig.parsers) return "";
+  for (const [name, d] of Object.entries(viewConfig.parsers)) {
+    if (d === desc) return name;
+  }
+  return "";
+}
+
+function syncMetadataKeys(
+  structuralField: string,
+  oldKey: string | null,
+  newKey: string | null,
+  index: number
+): void {
+  if (!selectedEntry) return;
+  const descs = getAttachedMetadataDescriptors(structuralField);
+  for (const desc of descs) {
+    const fieldName = getMetadataFieldName(desc);
+    if (!fieldName) continue;
+    const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
+    let rows = parseKeyedList(rawValue, desc);
+
+    if (oldKey !== null && newKey !== null) {
+      // Rename: find the row with oldKey and update its key
+      const row = rows.find((r) => r.key === oldKey);
+      if (row) {
+        row.key = newKey;
+      } else {
+        // Old key not found — insert a new row for newKey at the right position
+        rows.push({ key: newKey, value: "" });
+      }
+    } else if (oldKey !== null && newKey === null) {
+      // Remove: delete the row with oldKey
+      rows = rows.filter((r) => r.key !== oldKey);
+    } else if (oldKey === null && newKey !== null) {
+      // Add: insert a new row for newKey
+      rows.push({ key: newKey, value: "" });
+    }
+
+    const serialized = serializeKeyedList(rows, desc);
+    setNamedFieldText(selectedEntry, fieldName, serialized);
+  }
+}
+
+function handleMetadataChange(
+  structuralField: string,
+  formKey: string,
+  desc: KeyedListDescriptor,
+  value: string
+): void {
+  if (!selectedEntry) return;
+  const fieldName = getMetadataFieldName(desc);
+  if (!fieldName) return;
+  const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
+  const rows = parseKeyedList(rawValue, desc);
+  const row = rows.find((r) => r.key === formKey);
+  if (row) {
+    row.value = value;
+  } else {
+    rows.push({ key: formKey, value });
+  }
+  const serialized = serializeKeyedList(rows, desc);
+  setNamedFieldText(selectedEntry, fieldName, serialized);
+  markChanged();
+}
+
+function fillMultiFieldContainer(
+  container: HTMLElement,
+  values: any,
+  inputClassName: string,
+  groupClassName: string,
+  onChange: (index: number, value: string) => void,
+  onRemove: (index: number) => void,
+  minItems?: number,
+  structuralField?: string
+): void {
+  container.innerHTML = "";
+  const items = toElanTextArray(values);
+  const attachedDescs = structuralField ? getAttachedMetadataDescriptors(structuralField) : [];
+  items.forEach((item, index) => {
+    const group = document.createElement("div");
+    group.className = groupClassName;
+
+    const inputRow = document.createElement("div");
+    inputRow.className = "multi-field-input-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = getElanText(item);
+    input.className = inputClassName;
+    input.oninput = (e) =>
+      onChange(index, (e.target as HTMLInputElement).value);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "Remove";
+    removeButton.className = "button danger small";
+    if (minItems && items.length <= minItems) {
+      removeButton.disabled = true;
+    }
+    removeButton.onclick = () => onRemove(index);
+
+    inputRow.appendChild(input);
+    inputRow.appendChild(removeButton);
+    group.appendChild(inputRow);
+
+    // Render attached metadata inline
+    if (attachedDescs.length > 0) {
+      const formKey = getElanText(item);
+      const metaContainer = document.createElement("div");
+      metaContainer.className = "metadata-inline-container";
+      for (const desc of attachedDescs) {
+        const metaRow = document.createElement("div");
+        metaRow.className = "metadata-row";
+
+        const metaLabel = document.createElement("label");
+        metaLabel.className = "metadata-label";
+        metaLabel.textContent = desc.valueLabel;
+
+        const metaInput = document.createElement("input");
+        metaInput.type = "text";
+        metaInput.className = "metadata-input";
+        metaInput.value = getMetadataValueForForm(desc, formKey);
+        metaInput.readOnly = !desc.editable;
+        if (desc.editable) {
+          metaInput.oninput = (e) =>
+            handleMetadataChange(structuralField!, formKey, desc, (e.target as HTMLInputElement).value);
+        }
+
+        metaRow.appendChild(metaLabel);
+        metaRow.appendChild(metaInput);
+        metaContainer.appendChild(metaRow);
+      }
+      group.appendChild(metaContainer);
+    }
+
+    container.appendChild(group);
+  });
+
+  syncOptionalSectionEmptyState(container);
+}
+
+// Toggle compact "empty section" treatment for optional sections. When the
+// list is empty, the section collapses to a header + short empty hint; when
+// populated, the full card style applies. Sections without the
+// `optional-section` marker (e.g. Variants, Gloss) are left unchanged.
+function syncOptionalSectionEmptyState(container: HTMLElement): void {
+  const section = container.parentElement as HTMLElement | null;
+  if (!section || !section.classList.contains("optional-section")) return;
+
+  const isEmpty = container.children.length === 0;
+  section.classList.toggle("empty", isEmpty);
+
+  let hint = section.querySelector(".section-empty-hint") as HTMLElement | null;
+  if (isEmpty) {
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "section-empty-hint";
+      const labelEl = section.querySelector(".section-header .section-label") as HTMLElement | null;
+      const labelText = labelEl ? (labelEl.textContent || "").trim() : "";
+      hint.textContent = labelText ? `No ${labelText.toLowerCase()} added` : "Nothing added";
+      section.appendChild(hint);
+    }
+  } else if (hint) {
+    hint.remove();
+  }
+}
+
+function appendMultiFieldSection(
+  parent: HTMLElement,
+  label: string,
+  fieldKey: string,
+  values: any,
+  onChange: (index: number, value: string) => void,
+  onRemove: (index: number) => void,
+  onAdd: () => void,
+  minItems?: number,
+  structuralField?: string,
+  optional?: boolean
+): void {
+  const section = document.createElement("div");
+  section.className = `${fieldKey}-section`;
+  if (optional) section.classList.add("optional-section");
+
+  const header = document.createElement("div");
+  header.className = "section-header";
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "section-label";
+  labelEl.textContent = label;
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.textContent = `Add ${label}`;
+  addButton.className = "button secondary small";
+  addButton.onclick = onAdd;
+
+  header.appendChild(labelEl);
+  header.appendChild(addButton);
+
+  const list = document.createElement("div");
+  list.className = `${fieldKey}-list`;
+
+  section.appendChild(header);
+  section.appendChild(list);
+  parent.appendChild(section);
+
+  fillMultiFieldContainer(
+    list,
+    values,
+    `${fieldKey}-input`,
+    `${fieldKey}-group`,
+    onChange,
+    onRemove,
+    minItems,
+    structuralField
+  );
+}
+
 // Refresh the shared datalists so morph-type and grammatical-category inputs can suggest existing values
 function refreshAutocompleteOptions() {
   const morphOptions = collectEntryFieldValues("morph-type");
@@ -141,6 +438,22 @@ function refreshAutocompleteOptions() {
     refs.morphTypeInput as HTMLInputElement,
     AUTOCOMPLETE_IDS.morphType
   );
+}
+
+// refreshAutocompleteOptions scans the whole lexicon; debounce it so it does
+// not run on every keystroke while typing in entry fields.
+let autocompleteRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutocompleteRefresh() {
+  if (autocompleteRefreshTimer) clearTimeout(autocompleteRefreshTimer);
+  autocompleteRefreshTimer = setTimeout(() => {
+    autocompleteRefreshTimer = null;
+    refreshAutocompleteOptions();
+  }, 400);
+}
+
+export function setViewConfig(config: ViewConfig | null) {
+  viewConfig = config;
 }
 
 export function init(options: EntryEditorOptions) {
@@ -162,6 +475,10 @@ export function init(options: EntryEditorOptions) {
   refs.dateModifiedInput = $("dateModified");
   refs.variantsContainer = $("variantsContainer");
   refs.addVariantBtn = $("addVariantBtn");
+  refs.phoneticContainer = $("phoneticContainer");
+  refs.addPhoneticBtn = $("addPhoneticBtn");
+  refs.noteContainer = $("noteContainer");
+  refs.addNoteBtn = $("addNoteBtn");
   refs.entryCustomFieldsContainer = $("entryCustomFieldsContainer");
   refs.entryHeader = $("entryHeaderTitle");
   refs.entryHeaderBar = $("entryHeaderBar");
@@ -170,6 +487,8 @@ export function init(options: EntryEditorOptions) {
 
   if (refs.addSenseBtn) refs.addSenseBtn.onclick = handleAddSense;
   if (refs.addVariantBtn) refs.addVariantBtn.onclick = handleAddVariant;
+  if (refs.addPhoneticBtn) refs.addPhoneticBtn.onclick = handleAddPhonetic;
+  if (refs.addNoteBtn) refs.addNoteBtn.onclick = handleAddNote;
   if (refs.discardChangesBtn) {
     refs.discardChangesBtn.onclick = handleDiscardChanges;
   }
@@ -264,6 +583,8 @@ export function clear() {
   }
   if (refs.sensesContainer) refs.sensesContainer.innerHTML = "";
   if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
+  if (refs.phoneticContainer) refs.phoneticContainer.innerHTML = "";
+  if (refs.noteContainer) refs.noteContainer.innerHTML = "";
 }
 
 function handleAddVariant() {
@@ -271,6 +592,7 @@ function handleAddVariant() {
   const variants = toElanTextArray(selectedEntry.variant);
   variants.push("");
   setVariantArray(selectedEntry, variants);
+  syncMetadataKeys("variant", null, "", variants.length - 1);
   renderEntryForm();
   markChanged();
 }
@@ -290,6 +612,92 @@ function handleVariantChange(index: number, value: string) {
   setElanTextAt(variants, index, value);
   setVariantArray(selectedEntry, variants);
   updateEntryFromForm();
+}
+
+function handleAddPhonetic() {
+  if (!selectedEntry) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  phonetics.push("");
+  setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", null, "", phonetics.length - 1);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleRemovePhonetic(index: number) {
+  if (!selectedEntry || !selectedEntry.phonetic) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  const removedKey = getElanText(phonetics[index]);
+  phonetics.splice(index, 1);
+  setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", removedKey, null, index);
+  renderEntryForm();
+  markChanged();
+}
+
+function handlePhoneticChange(index: number, value: string) {
+  if (!selectedEntry) return;
+  const phonetics = toElanTextArray(selectedEntry.phonetic);
+  const oldKey = getElanText(phonetics[index]);
+  setElanTextAt(phonetics, index, value);
+  setPhoneticArray(selectedEntry, phonetics);
+  syncMetadataKeys("phonetic", oldKey, value, index);
+  updateEntryFromForm();
+}
+
+function handleAddNote() {
+  if (!selectedEntry) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  notes.push("");
+  setNoteArray(selectedEntry, notes);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleRemoveNote(index: number) {
+  if (!selectedEntry || !selectedEntry.note) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  notes.splice(index, 1);
+  setNoteArray(selectedEntry, notes);
+  renderEntryForm();
+  markChanged();
+}
+
+function handleNoteChange(index: number, value: string) {
+  if (!selectedEntry) return;
+  const notes = toElanTextArray(selectedEntry.note);
+  setElanTextAt(notes, index, value);
+  setNoteArray(selectedEntry, notes);
+  updateEntryFromForm();
+}
+
+function handleSenseFieldChange(senseIndex: number, field: string, valIdx: number, value: string) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  setElanTextAt(values, valIdx, value);
+  sense[field] = values;
+  updateEntryFromForm();
+}
+
+function handleRemoveSenseField(senseIndex: number, field: string, valIdx: number) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  values.splice(valIdx, 1);
+  sense[field] = values.length > 0 ? values : null;
+  renderEntryForm();
+  markChanged();
+}
+
+function handleAddSenseField(senseIndex: number, field: string) {
+  if (!selectedEntry?.sense || !selectedEntry.sense[senseIndex]) return;
+  const sense = selectedEntry.sense[senseIndex];
+  const values = toElanTextArray(sense[field]);
+  values.push("");
+  sense[field] = values;
+  renderEntryForm();
+  markChanged();
 }
 
 function handleAddSense() {
@@ -332,7 +740,13 @@ function updateEntryFromForm() {
       if (fieldName === "field") {
         const nameAttr = input.dataset.customName;
         if (!nameAttr) return;
-        setNamedFieldText(selectedEntry!, nameAttr, input.value);
+        const existingIdx = findNamedElanFieldIndex(
+          getFieldArray(selectedEntry!.field),
+          nameAttr
+        );
+        if (input.value || existingIdx >= 0) {
+          setNamedFieldText(selectedEntry!, nameAttr, input.value);
+        }
       } else {
         setFirstElanText(selectedEntry!, fieldName, input.value);
       }
@@ -343,19 +757,11 @@ function updateEntryFromForm() {
   senseEls.forEach((senseEl, index) => {
     if (!selectedEntry?.sense) return;
     const gci = senseEl.querySelector(".grammatical-category") as HTMLInputElement;
-    const gi = senseEl.querySelector(".gloss") as HTMLInputElement;
-    const di = senseEl.querySelector(".definition") as HTMLInputElement;
     if (!selectedEntry.sense[index]) return;
     setFirstElanText(
       selectedEntry.sense[index],
       "grammatical-category",
       gci ? gci.value : ""
-    );
-    setFirstElanText(selectedEntry.sense[index], "gloss", gi ? gi.value : "");
-    setFirstElanText(
-      selectedEntry.sense[index],
-      "definition",
-      di ? di.value : ""
     );
 
     // Custom sense fields
@@ -369,7 +775,14 @@ function updateEntryFromForm() {
         if (fieldName === "field") {
           const nameAttr = input.dataset.customName;
           if (!nameAttr) return;
-          setNamedFieldText(selectedEntry.sense[index], nameAttr, input.value);
+          const target = selectedEntry.sense[index];
+          const existingIdx = findNamedElanFieldIndex(
+            getFieldArray(target.field),
+            nameAttr
+          );
+          if (input.value || existingIdx >= 0) {
+            setNamedFieldText(target, nameAttr, input.value);
+          }
         } else {
           setFirstElanText(
             selectedEntry.sense[index],
@@ -383,7 +796,200 @@ function updateEntryFromForm() {
   // Update the heading when lexical unit changes
   updateEntryHeading();
   markChanged();
-  refreshAutocompleteOptions();
+  scheduleAutocompleteRefresh();
+}
+
+function parseRecordList(rawValue: string, desc: RecordListDescriptor): Record<string, string>[] {
+  if (!rawValue || !rawValue.trim()) return [];
+  const recordStrings = rawValue.split(desc.recordSeparator).map((s) => s.trim());
+  const rows: Record<string, string>[] = [];
+
+  for (const recordStr of recordStrings) {
+    let inner = recordStr;
+    const open = desc.recordDelimiters[0];
+    const close = desc.recordDelimiters[1];
+    if (inner.startsWith(open)) inner = inner.slice(open.length);
+    if (inner.endsWith(close)) inner = inner.slice(0, -close.length);
+    inner = inner.trim();
+
+    const pairs: Record<string, string> = {};
+    for (let i = 0; i < desc.keyOrder.length; i++) {
+      const key = desc.keyOrder[i];
+      const prefix = key + desc.kvSeparator;
+      const startIdx = inner.indexOf(prefix);
+      if (startIdx === -1) {
+        pairs[key] = "";
+        continue;
+      }
+      const valueStart = startIdx + prefix.length;
+      if (i + 1 < desc.keyOrder.length) {
+        const nextPrefix = desc.keyOrder[i + 1] + desc.kvSeparator;
+        const endIdx = inner.indexOf(nextPrefix, valueStart);
+        if (endIdx === -1) {
+          pairs[key] = inner.slice(valueStart).trim();
+        } else {
+          pairs[key] = inner.slice(valueStart, endIdx).trim();
+        }
+      } else {
+        pairs[key] = inner.slice(valueStart).trim();
+      }
+    }
+    rows.push(pairs);
+  }
+  return rows;
+}
+
+function parseKeyedList(rawValue: string, desc: KeyedListDescriptor): { key: string; value: string }[] {
+  if (!rawValue || !rawValue.trim()) return [];
+  const recordStrings = rawValue.split(desc.recordSeparator).map((s) => s.trim());
+  const rows: { key: string; value: string }[] = [];
+
+  for (const recordStr of recordStrings) {
+    let inner = recordStr;
+    const open = desc.recordDelimiters[0];
+    const close = desc.recordDelimiters[1];
+    if (inner.startsWith(open)) inner = inner.slice(open.length);
+    if (inner.endsWith(close)) inner = inner.slice(0, -close.length);
+    inner = inner.trim();
+
+    const sepIdx = inner.indexOf(desc.kvSeparator);
+    if (sepIdx === -1) continue;
+    const key = inner.slice(0, sepIdx).trim();
+    const value = inner.slice(sepIdx + desc.kvSeparator.length).trim();
+    rows.push({ key, value });
+  }
+  return rows;
+}
+
+function renderRecordListTable(rawValue: string, desc: RecordListDescriptor): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "parser-field-wrapper";
+
+  const rows = parseRecordList(rawValue, desc);
+  if (rows.length === 0) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "parser-no-data";
+    placeholder.textContent = "No data";
+    wrapper.appendChild(placeholder);
+    return wrapper;
+  }
+
+  const table = document.createElement("table");
+  table.className = "parser-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const key of desc.keyOrder) {
+    const th = document.createElement("th");
+    th.textContent = (desc.columnLabels && desc.columnLabels[key]) || key;
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  let lastGroupValue: string | null = null;
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    if (desc.groupBy) {
+      const groupValue = row[desc.groupBy] || "";
+      if (groupValue !== lastGroupValue) {
+        tr.className = "parser-group-start";
+        lastGroupValue = groupValue;
+      }
+    }
+    for (const key of desc.keyOrder) {
+      const td = document.createElement("td");
+      td.textContent = row[key] || "";
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  return wrapper;
+}
+
+function renderKeyedListTable(rawValue: string, desc: KeyedListDescriptor): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "parser-field-wrapper";
+
+  const rows = parseKeyedList(rawValue, desc);
+  if (rows.length === 0) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "parser-no-data";
+    placeholder.textContent = "No data";
+    wrapper.appendChild(placeholder);
+    return wrapper;
+  }
+
+  const table = document.createElement("table");
+  table.className = "parser-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const thKey = document.createElement("th");
+  thKey.textContent = desc.keyLabel;
+  const thValue = document.createElement("th");
+  thValue.textContent = desc.valueLabel;
+  headerRow.appendChild(thKey);
+  headerRow.appendChild(thValue);
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    const tdKey = document.createElement("td");
+    tdKey.textContent = row.key;
+    const tdValue = document.createElement("td");
+    tdValue.textContent = row.value;
+    tr.appendChild(tdKey);
+    tr.appendChild(tdValue);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  return wrapper;
+}
+
+function renderParsedField(fieldName: string, rawValue: string): HTMLElement | null {
+  if (!viewConfig || !viewConfig.parsers) return null;
+  const desc = viewConfig.parsers[fieldName];
+  if (!desc) return null;
+
+  if (desc.type === "record-list") {
+    return renderRecordListTable(rawValue, desc);
+  } else if (desc.type === "keyed-list") {
+    return renderKeyedListTable(rawValue, desc);
+  }
+  return null;
+}
+
+function applyFieldGroups(container: HTMLElement) {
+  if (!viewConfig || !viewConfig["field-groups"]) return;
+  for (const group of viewConfig["field-groups"]) {
+    if (!group.fields || group.fields.length === 0) continue;
+    const matched: HTMLElement[] = [];
+    for (const name of group.fields) {
+      const el = container.querySelector<HTMLElement>(
+        `[data-field-name="${CSS.escape(name)}"]`
+      );
+      if (el) matched.push(el);
+    }
+    if (matched.length === 0) continue;
+
+    const details = document.createElement("details");
+    if (!group.collapsedByDefault) details.open = true;
+    details.className = "field-group-details";
+
+    const summary = document.createElement("summary");
+    summary.textContent = group.label;
+    details.appendChild(summary);
+
+    container.insertBefore(details, matched[0]);
+    matched.forEach((el) => details.appendChild(el));
+  }
 }
 
 function renderCustomEntryFields() {
@@ -425,14 +1031,22 @@ function renderCustomEntryFields() {
     return getFirstElanText(val);
   };
 
+  const isAttachedField = (name: string): boolean => {
+    if (!viewConfig || !viewConfig.parsers) return false;
+    const desc = viewConfig.parsers[name];
+    return !!(desc && desc.type === "keyed-list" && desc.attachTo);
+  };
+
   const appendField = (
     displayName: string,
     fieldName: string,
     value: string,
     customName?: string
   ) => {
+    if (isAttachedField(displayName)) return;
+
     const id = `custom_${displayName}`;
-    const existing = container.querySelector(`#${id}`);
+    const existing = container.querySelector(`#custom_${CSS.escape(displayName)}`);
     if (existing) return;
 
     const formGroup = document.createElement("div");
@@ -442,17 +1056,23 @@ function renderCustomEntryFields() {
     const label = document.createElement("label");
     label.textContent = displayName.replace(/_/g, " ");
 
-    const input = document.createElement("input");
-    input.type = "text";
-    input.id = id;
-    input.className = "custom-field-input";
-    input.dataset.fieldName = fieldName;
-    if (customName) input.dataset.customName = customName;
-    input.value = value || "";
-    input.oninput = () => updateEntryFromForm();
+    const parsed = renderParsedField(displayName, value);
+    if (parsed) {
+      formGroup.appendChild(label);
+      formGroup.appendChild(parsed);
+    } else {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.id = id;
+      input.className = "custom-field-input";
+      input.dataset.fieldName = fieldName;
+      if (customName) input.dataset.customName = customName;
+      input.value = value || "";
+      input.oninput = () => updateEntryFromForm();
 
-    formGroup.appendChild(label);
-    formGroup.appendChild(input);
+      formGroup.appendChild(label);
+      formGroup.appendChild(input);
+    }
     container.appendChild(formGroup);
   };
 
@@ -473,10 +1093,12 @@ function renderCustomEntryFields() {
       return;
     }
 
+    // ELAN custom fields are normally stored as elements whose tag matches the
+    // declared field-spec name (for example, <devanagari>...</devanagari>).
     appendField(fieldName, fieldName, getEntryValue(fieldName));
   });
 
-  const standardFields = ["$", "lexical-unit", "morph-type", "sense", "variant"];
+  const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "note", "sense", "variant"];
   Object.keys(selectedEntry).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
@@ -491,12 +1113,16 @@ function renderCustomEntryFields() {
       if (!field || !field.$ || !field.$.name) return;
       const fieldName = field.$.name;
       const isDefined = customFields.some(
-        (f) => f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName
+        (f) =>
+          f.$.name === fieldName ||
+          (f.$.name === "field" && ((f.$ && f.$.nameAttr) || f.$.name) === fieldName)
       );
       if (isDefined) return;
       appendField(fieldName, "field", getElanText(field), fieldName);
     });
   }
+
+  applyFieldGroups(container);
 }
 
 function renderCustomSenseFields(
@@ -548,12 +1174,12 @@ function renderCustomSenseFields(
       const customName = (field.$ && field.$.nameAttr) || field.$.name;
       input.dataset.fieldName = "field";
       input.dataset.customName = customName;
+      input.value = getNamedFieldText(sense.field, customName);
+    } else {
+      // As at entry level, a declared custom field is a direct child element.
+      input.dataset.fieldName = fieldName;
+      input.value = getFirstElanText(sense[fieldName]);
     }
-
-    input.value =
-      fieldName === "field" && input.dataset.customName
-        ? getNamedFieldText(sense.field, input.dataset.customName)
-        : getFirstElanText(sense[fieldName]);
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);
@@ -562,7 +1188,7 @@ function renderCustomSenseFields(
   });
 
   // Add ad-hoc fields on sense not in header
-  const standardFields = ["$", "grammatical-category", "gloss", "definition"];
+  const standardFields = ["$", "grammatical-category", "gloss", "definition", "comment", "internal-note"];
   Object.keys(sense).forEach((key) => {
     if (standardFields.includes(key)) return;
     if (key === "field") return;
@@ -674,29 +1300,43 @@ function renderEntryForm() {
   refs.morphTypeInput!.oninput = updateEntryFromForm;
 
   // Variants
-  if (refs.variantsContainer) refs.variantsContainer.innerHTML = "";
-  if (selectedEntry.variant) {
-    toElanTextArray(selectedEntry.variant).forEach((variant, index) => {
-      const variantGroup = document.createElement("div");
-      variantGroup.className = "variant-group";
+  if (refs.variantsContainer) {
+    fillMultiFieldContainer(
+      refs.variantsContainer,
+      selectedEntry.variant,
+      "variant-input",
+      "variant-group",
+      handleVariantChange,
+      handleRemoveVariant,
+      undefined,
+      "variant"
+    );
+  }
 
-      const variantInput = document.createElement("input");
-      variantInput.type = "text";
-      variantInput.value = getElanText(variant);
-      variantInput.className = "variant-input";
-      variantInput.oninput = (e) =>
-        handleVariantChange(index, (e.target as HTMLInputElement).value);
+  // Phonetic
+  if (refs.phoneticContainer) {
+    fillMultiFieldContainer(
+      refs.phoneticContainer,
+      selectedEntry.phonetic,
+      "phonetic-input",
+      "phonetic-group",
+      handlePhoneticChange,
+      handleRemovePhonetic,
+      undefined,
+      "phonetic"
+    );
+  }
 
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.textContent = "Remove";
-      removeButton.className = "button danger small";
-      removeButton.onclick = () => handleRemoveVariant(index);
-
-      variantGroup.appendChild(variantInput);
-      variantGroup.appendChild(removeButton);
-      refs.variantsContainer!.appendChild(variantGroup);
-    });
+  // Note
+  if (refs.noteContainer) {
+    fillMultiFieldContainer(
+      refs.noteContainer,
+      selectedEntry.note,
+      "note-input",
+      "note-group",
+      handleNoteChange,
+      handleRemoveNote
+    );
   }
 
   // Senses
@@ -806,38 +1446,61 @@ function renderEntryForm() {
     grammaticalCategoryInput.oninput = updateEntryFromForm;
     grammaticalCategoryGroup.appendChild(grammaticalCategoryLabel);
     grammaticalCategoryGroup.appendChild(grammaticalCategoryInput);
+    senseBody.appendChild(grammaticalCategoryGroup);
 
-    const glossGroup = document.createElement("div");
-    glossGroup.className = "form-group";
-    const glossLabel = document.createElement("label");
-    glossLabel.textContent = "Gloss";
-    const glossInput = document.createElement("input");
-    glossInput.type = "text";
-    glossInput.className = "gloss";
-    glossInput.value = getFirstElanText(sense.gloss);
-    glossInput.oninput = updateEntryFromForm;
-    glossGroup.appendChild(glossLabel);
-    glossGroup.appendChild(glossInput);
+    // Gloss (XSD: minOccurs=1, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Gloss",
+      "gloss",
+      sense.gloss,
+      (valIdx, value) => handleSenseFieldChange(index, "gloss", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "gloss", valIdx),
+      () => handleAddSenseField(index, "gloss"),
+      1
+    );
 
-    const coreGrid = document.createElement("div");
-    coreGrid.className = "sense-core-grid";
-    coreGrid.appendChild(grammaticalCategoryGroup);
-    coreGrid.appendChild(glossGroup);
+    // Definition (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Definition",
+      "definition",
+      (sense as any)["definition"],
+      (valIdx, value) => handleSenseFieldChange(index, "definition", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "definition", valIdx),
+      () => handleAddSenseField(index, "definition"),
+      undefined,
+      undefined,
+      true
+    );
 
-    senseBody.appendChild(coreGrid);
+    // Comment (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Comment",
+      "comment",
+      (sense as any)["comment"],
+      (valIdx, value) => handleSenseFieldChange(index, "comment", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "comment", valIdx),
+      () => handleAddSenseField(index, "comment"),
+      undefined,
+      undefined,
+      true
+    );
 
-    const definitionGroup = document.createElement("div");
-    definitionGroup.className = "form-group";
-    const definitionLabel = document.createElement("label");
-    definitionLabel.textContent = "Definition";
-    const definitionInput = document.createElement("input");
-    definitionInput.type = "text";
-    definitionInput.className = "definition";
-    definitionInput.value = getFirstElanText((sense as any)["definition"]);
-    definitionInput.oninput = updateEntryFromForm;
-    definitionGroup.appendChild(definitionLabel);
-    definitionGroup.appendChild(definitionInput);
-    senseBody.appendChild(definitionGroup);
+    // Internal Note (XSD: minOccurs=0, maxOccurs=unbounded)
+    appendMultiFieldSection(
+      senseBody,
+      "Internal Note",
+      "internal-note",
+      (sense as any)["internal-note"],
+      (valIdx, value) => handleSenseFieldChange(index, "internal-note", valIdx, value),
+      (valIdx) => handleRemoveSenseField(index, "internal-note", valIdx),
+      () => handleAddSenseField(index, "internal-note"),
+      undefined,
+      undefined,
+      true
+    );
 
     // Custom sense-level fields
     renderCustomSenseFields(sense, senseBody, index);
