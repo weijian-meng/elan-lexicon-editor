@@ -2,6 +2,7 @@
 
 import {
   findNamedElanFieldIndex,
+  resolveDeclaredElanField,
   getElanText,
   getElanTextValues,
   getFirstElanText,
@@ -1081,21 +1082,8 @@ function renderCustomEntryFields() {
     const fieldName = field.$.name;
     if (!fieldName) return;
 
-    if (fieldName === "field") {
-      const customName = (field.$ && field.$.nameAttr) || field.$.name;
-      const displayName = customName || fieldName;
-      appendField(
-        displayName,
-        "field",
-        getEntryValue("field", displayName),
-        displayName
-      );
-      return;
-    }
-
-    // ELAN custom fields are normally stored as elements whose tag matches the
-    // declared field-spec name (for example, <devanagari>...</devanagari>).
-    appendField(fieldName, fieldName, getEntryValue(fieldName));
+    const binding = resolveDeclaredElanField(selectedEntry!, field.$);
+    appendField(binding.name, binding.fieldName, binding.value, binding.customName);
   });
 
   const standardFields = ["$", "lexical-unit", "morph-type", "phonetic", "note", "sense", "variant"];
@@ -1170,16 +1158,12 @@ function renderCustomSenseFields(
     input.dataset.fieldName = fieldName;
     input.dataset.senseIndex = String(senseIndex);
 
-    if (fieldName === "field") {
-      const customName = (field.$ && field.$.nameAttr) || field.$.name;
-      input.dataset.fieldName = "field";
-      input.dataset.customName = customName;
-      input.value = getNamedFieldText(sense.field, customName);
-    } else {
-      // As at entry level, a declared custom field is a direct child element.
-      input.dataset.fieldName = fieldName;
-      input.value = getFirstElanText(sense[fieldName]);
-    }
+    const binding = resolveDeclaredElanField(sense, field.$);
+    formGroup.dataset.fieldName = binding.name;
+    label.textContent = binding.name.replace(/_/g, " ");
+    input.dataset.fieldName = binding.fieldName;
+    if (binding.customName) input.dataset.customName = binding.customName;
+    input.value = binding.value;
     input.oninput = () => updateEntryFromForm();
 
     formGroup.appendChild(label);

@@ -71,3 +71,27 @@ export function findNamedElanFieldIndex(values: any, name: string): number {
       value.$.name === name
   );
 }
+
+// A field-spec declares the name and level; ELAN stores its value in field@name.
+// Preserve existing direct elements from older editor files, but use ELAN's
+// named-field representation for newly populated declarations.
+export function resolveDeclaredElanField(
+  target: Record<string, any>,
+  declaration: { name: string; nameAttr?: string }
+) {
+  const name = declaration.name === "field"
+    ? declaration.nameAttr || declaration.name
+    : declaration.name;
+  const values = toElanTextArray(target.field);
+  const index = findNamedElanFieldIndex(values, name);
+  if (index < 0 && declaration.name !== "field" &&
+      Object.prototype.hasOwnProperty.call(target, name)) {
+    return { name, fieldName: name, value: getFirstElanText(target[name]), customName: undefined };
+  }
+  return {
+    name,
+    fieldName: "field",
+    customName: name,
+    value: index >= 0 ? getElanText(values[index]) : "",
+  };
+}

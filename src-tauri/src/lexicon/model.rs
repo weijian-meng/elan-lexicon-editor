@@ -64,7 +64,7 @@ pub fn new_lexicon(name: &str, language: &str) -> Value {
             "xmlns:xsi": XMLNS_XSI,
             "schemaVersion": DEFAULT_SCHEMA_VERSION,
             "producer": DEFAULT_PRODUCER,
-            "xsi:schemaLocation": DEFAULT_SCHEMA_LOCATION
+            "xsi:noNamespaceSchemaLocation": DEFAULT_SCHEMA_LOCATION
         },
         "header": [{
             "name": [name],

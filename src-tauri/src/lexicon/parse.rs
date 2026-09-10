@@ -7,7 +7,7 @@ use super::model::{XmlError, ATTR_PREFIX, FORCED_LISTS, TEXT_KEY};
 
 pub fn parse_xml(xml_content: &str) -> Result<Value, XmlError> {
     let mut reader = Reader::from_str(xml_content);
-    reader.trim_text(true);
+    reader.trim_text(false);
     reader.expand_empty_elements(true);
 
     #[derive(Debug)]
@@ -70,7 +70,13 @@ pub fn parse_xml(xml_content: &str) -> Result<Value, XmlError> {
 
                     let has_attrs = !completed.attrs.is_empty();
                     let has_children = !completed.children.is_empty();
-                    let raw_text = completed.text.as_ref().map(|s| s.trim()).unwrap_or("");
+                    // Preserve field text exactly; indentation around child elements is structural.
+                    let raw_text = completed.text.as_deref().unwrap_or("");
+                    let raw_text = if has_children {
+                        raw_text.trim()
+                    } else {
+                        raw_text
+                    };
                     let has_text = !raw_text.is_empty();
                     let text_val = raw_text.to_string();
 

@@ -1,6 +1,6 @@
 {
   "name": "elan-lexicon-editor",
-  "version": "0.3.0-beta.2",
+  "version": "0.3.0-beta.3",
   "description": "Rust + Tauri application for creating and editing XML lexicon files following the ELAN lexicon schema.",
   "main": "index.js",
   "scripts": {

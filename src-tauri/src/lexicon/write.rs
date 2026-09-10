@@ -1,10 +1,11 @@
+use quick_xml::escape::partial_escape;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::writer::Writer;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::io::Cursor;
 
-use super::model::{XmlError, ATTR_PREFIX, TEXT_KEY};
+use super::model::{XmlError, ATTR_PREFIX, DEFAULT_SCHEMA_LOCATION, TEXT_KEY, XMLNS_XSI};
 
 pub fn build_xml(json: &Value) -> Result<String, XmlError> {
     let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 4);
@@ -27,7 +28,7 @@ pub fn build_xml(json: &Value) -> Result<String, XmlError> {
     let xml = String::from_utf8(result)?;
 
     let decl = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
-    Ok(format!("{}\n{}", decl, xml))
+    Ok(format!("{}\n{}\n", decl, xml))
 }
 
 fn child_order(name: &str) -> Option<&'static [&'static str]> {
@@ -86,7 +87,37 @@ fn write_element<W: std::io::Write>(
             let mut elem = BytesStart::new(name);
 
             if let Some(Value::Object(attr_map)) = map.get(ATTR_PREFIX) {
-                for (key, value) in attr_map {
+                let mut attr_map = attr_map.clone();
+                // Repair the legacy single-URL schema hint for namespace-free ELAN files.
+                if name == "lexicon"
+                    && attr_map.get("xmlns:xsi").and_then(Value::as_str) == Some(XMLNS_XSI)
+                    && attr_map
+                        .get("xmlns")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .is_empty()
+                    && attr_map.get("xsi:schemaLocation").and_then(Value::as_str)
+                        == Some(DEFAULT_SCHEMA_LOCATION)
+                {
+                    attr_map.remove("xsi:schemaLocation");
+                    attr_map
+                        .entry("xsi:noNamespaceSchemaLocation".to_string())
+                        .or_insert_with(|| Value::String(DEFAULT_SCHEMA_LOCATION.to_string()));
+                }
+                // Match ELAN's attribute order for entries and declarations.
+                let preferred: &[&str] = match name {
+                    "entry" => &["id", "dateCreated", "dateModified"],
+                    "field-spec" => &["name", "level"],
+                    _ => &[],
+                };
+                let mut attributes: Vec<_> = attr_map.iter().collect();
+                attributes.sort_by_key(|(key, _)| {
+                    preferred
+                        .iter()
+                        .position(|name| *name == key.as_str())
+                        .unwrap_or(preferred.len())
+                });
+                for (key, value) in attributes {
                     if let Value::String(text) = value {
                         elem.push_attribute((key.as_str(), text.as_str()));
                     }
@@ -102,7 +133,10 @@ fn write_element<W: std::io::Write>(
                 writer.write_event(Event::Start(elem.borrow()))?;
 
                 if let Some(Value::String(text)) = map.get(TEXT_KEY) {
-                    writer.write_event(Event::Text(BytesText::new(text)))?;
+                    writer
+                        .write_event(Event::Text(BytesText::from_escaped(partial_escape(text))))?;
+                } else if map.is_empty() {
+                    writer.write_event(Event::Text(BytesText::new("")))?;
                 }
 
                 let mut written_keys = HashSet::new();
@@ -123,28 +157,40 @@ fn write_element<W: std::io::Write>(
 
                 writer.write_event(Event::End(BytesEnd::new(name)))?;
             } else {
-                writer.write_event(Event::Empty(elem))?;
+                write_empty_element(writer, elem)?;
             }
         }
         Value::String(text) => {
             let elem = BytesStart::new(name);
             writer.write_event(Event::Start(elem.borrow()))?;
-            writer.write_event(Event::Text(BytesText::new(text)))?;
+            writer.write_event(Event::Text(BytesText::from_escaped(partial_escape(text))))?;
             writer.write_event(Event::End(BytesEnd::new(name)))?;
         }
         Value::Null => {
             let elem = BytesStart::new(name);
-            writer.write_event(Event::Empty(elem))?;
+            write_empty_element(writer, elem)?;
         }
         _ => {
             let text = value.to_string();
             let elem = BytesStart::new(name);
             writer.write_event(Event::Start(elem.borrow()))?;
-            writer.write_event(Event::Text(BytesText::new(&text)))?;
+            writer.write_event(Event::Text(BytesText::from_escaped(partial_escape(&text))))?;
             writer.write_event(Event::End(BytesEnd::new(name)))?;
         }
     }
 
+    Ok(())
+}
+
+// Empty text prevents the indenter from inserting a newline between the tags.
+// Parsed empty values and UI-created empty strings must serialize identically.
+fn write_empty_element<W: std::io::Write>(
+    writer: &mut Writer<W>,
+    elem: BytesStart<'_>,
+) -> Result<(), XmlError> {
+    writer.write_event(Event::Start(elem.borrow()))?;
+    writer.write_event(Event::Text(BytesText::new("")))?;
+    writer.write_event(Event::End(elem.to_end()))?;
     Ok(())
 }
 
@@ -153,6 +199,101 @@ mod tests {
     use super::*;
     use crate::lexicon::parse_xml;
     use serde_json::json;
+
+    #[test]
+    fn repairs_legacy_schema_hint_without_mutating_input() {
+        let input = json!({"lexicon": {"$": {
+            "xmlns:xsi": XMLNS_XSI,
+            "xsi:schemaLocation": DEFAULT_SCHEMA_LOCATION
+        }}});
+        let xml = build_xml(&input).unwrap();
+        assert!(xml.contains("xsi:noNamespaceSchemaLocation="));
+        assert!(!xml.contains("xsi:schemaLocation="));
+        assert!(input["lexicon"]["$"]["xsi:schemaLocation"].is_string());
+        assert!(xml.ends_with("\n"));
+        assert!(!xml.ends_with("\n\n"));
+        assert_eq!(build_xml(&parse_xml(&xml).unwrap()).unwrap(), xml);
+        let new = crate::lexicon::new_lexicon("test", "grv");
+        assert_eq!(
+            new["$"]["xsi:noNamespaceSchemaLocation"],
+            DEFAULT_SCHEMA_LOCATION
+        );
+    }
+
+    #[test]
+    fn preserves_other_schema_hints() {
+        let input = json!({"lexicon": {"$": {
+            "xmlns:xsi": XMLNS_XSI,
+            "xmlns": "urn:other",
+            "xsi:schemaLocation": "urn:other other.xsd"
+        }}});
+        assert_eq!(parse_xml(&build_xml(&input).unwrap()).unwrap(), input);
+    }
+
+    #[test]
+    fn preserves_quotes_and_whitespace_while_escaping_xml_text() {
+        let text = "  different from 'finish'? \"yes\" & <no>  ";
+        for value in [json!(text), json!({"$": {"name": "notes"}, "_": text})] {
+            let xml = build_xml(&json!({"field": value})).unwrap();
+            assert!(xml.contains("'finish'? \"yes\" &amp; &lt;no&gt;  </field>"));
+            let parsed = parse_xml(&xml).unwrap();
+            let field = &parsed["field"][0];
+            assert_eq!(field.as_str().or_else(|| field["_"].as_str()), Some(text));
+        }
+    }
+
+    #[test]
+    fn preserves_leaf_whitespace_without_importing_indentation() {
+        let xml = "<root>\n    <note> leading <![CDATA[& middle]]> trailing </note>\n    <empty> </empty>\n</root>";
+        let parsed = parse_xml(xml).unwrap();
+        assert_eq!(
+            parsed,
+            json!({"root": {"note": " leading & middle trailing ", "empty": " "}})
+        );
+        assert_eq!(parse_xml(&build_xml(&parsed).unwrap()).unwrap(), parsed);
+    }
+
+    #[test]
+    fn writes_empty_values_consistently() {
+        for value in [Value::Null, json!(""), json!({}), json!({"_": ""})] {
+            let xml = build_xml(&json!({"definition": value})).unwrap();
+            assert!(xml.ends_with("<definition></definition>\n"), "{xml}");
+        }
+        let xml = build_xml(&json!({"field": {"$": {"name": "notes"}}})).unwrap();
+        assert!(xml.ends_with("<field name=\"notes\"></field>\n"));
+    }
+
+    #[test]
+    fn elan_empty_tags_and_attribute_order_survive_round_trip() {
+        let xml = concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n",
+            "<lexicon>\n",
+            "    <header>\n",
+            "        <custom-fields>\n",
+            "            <field-spec name=\"language\" level=\"entry\"></field-spec>\n",
+            "        </custom-fields>\n",
+            "    </header>\n",
+            "    <entry id=\"e1\" dateCreated=\"created\" dateModified=\"modified\">\n",
+            "        <lexical-unit>tsa</lexical-unit>\n",
+            "        <field name=\"language\"></field>\n",
+            "        <sense id=\"s1\" order=\"1\">\n",
+            "            <gloss>DIST</gloss>\n",
+            "            <definition></definition>\n",
+            "        </sense>\n",
+            "    </entry>\n",
+            "</lexicon>\n"
+        );
+        let mut parsed = parse_xml(xml).unwrap();
+        assert_eq!(build_xml(&parsed).unwrap(), xml);
+        parsed["lexicon"]["entry"][0]["field"][0]["_"] = json!("nep");
+        assert_eq!(
+            build_xml(&parsed).unwrap(),
+            xml.replace(
+                "<field name=\"language\"></field>",
+                "<field name=\"language\">nep</field>"
+            )
+        );
+    }
 
     #[test]
     fn writes_simple_element() {
