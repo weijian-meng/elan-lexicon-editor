@@ -10,6 +10,8 @@ import * as DiffViewer from "./DiffViewer";
 import * as SearchBar from "./SearchBar";
 import { LexiconEntry } from "./LexiconTable";
 import { getFirstElanText } from "./elanText";
+import { confirmDelete } from "./confirmDelete";
+import { disableAutomaticTextChanges } from "./textInput";
 
 // Styles
 import "./assets/design-tokens.css";
@@ -243,6 +245,7 @@ function init() {
     // Prevent double-initialization
     if (initialized) return;
     initialized = true;
+    disableAutomaticTextChanges();
 
     // Init modules
     LexiconTable.init({
@@ -514,15 +517,21 @@ function performCloseFile() {
 
 async function handleRemoveEntry() {
     if (!currentLexicon || !selectedEntry) return;
-    if (!confirm("Delete this entry?")) return;
+    const lexicon = currentLexicon;
+    const entry = selectedEntry;
+    if (!await confirmDelete(getFirstElanText(entry["lexical-unit"]))) return;
+    // The confirmation is asynchronous; never mutate a newly opened document.
+    if (currentLexicon !== lexicon) return;
 
-    const idx = currentLexicon.entry.indexOf(selectedEntry);
+    const idx = lexicon.entry.indexOf(entry);
     if (idx >= 0) {
-        currentLexicon.entry.splice(idx, 1);
-        selectedEntry = null;
-        EntryEditor.clear();
+        lexicon.entry.splice(idx, 1);
+        if (selectedEntry === entry) {
+            selectedEntry = null;
+            EntryEditor.clear();
+        }
         handleLexiconChange();
-
+        renderEntries();
         updateActionAvailability();
     }
 }
@@ -640,5 +649,3 @@ function handleNewEntry() {
     handleEntrySelect(newEntry);
     handleLexiconChange();
 }
-
-
