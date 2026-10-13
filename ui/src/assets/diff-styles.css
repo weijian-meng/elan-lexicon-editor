@@ -2,8 +2,9 @@
 
 .diff-toolbar {
   display: flex;
-  align-items: center;
-  gap: var(--space-lg);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
   padding: var(--space-md);
   margin: var(--space-lg) var(--space-xl) var(--space-md);
   border: 1px solid var(--app-border);
@@ -12,7 +13,20 @@
 }
 
 .diff-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: var(--space-md);
+}
+
+.diff-toolbar-buttons {
+  justify-content: flex-start;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--app-border);
+}
+
+.diff-toolbar-buttons .button {
+  flex-shrink: 0;
 }
 
 .diff-toolbar-spacer,
@@ -27,7 +41,9 @@
 }
 
 .diff-source-select {
-  min-width: 180px;
+  min-width: 0;
+  width: 180px;
+  max-width: 100%;
 }
 
 .diff-vs {
@@ -154,7 +170,7 @@
 .diff-val-old {
   background: var(--app-error-bg);
   color: var(--app-error);
-  text-decoration: line-through;
+  white-space: pre-wrap;
 }
 
 .diff-val-new {
@@ -227,3 +243,14 @@
   background: rgba(245, 158, 11, 0.12);
   color: var(--app-warning-text);
 }
+
+.diff-entry-id { display: block; margin-top: 4px; color: var(--app-text-muted); font-size: var(--text-xs); font-weight: normal; overflow-wrap: anywhere; }
+.diff-entry-detail { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-table { table-layout: fixed; }
+.diff-table td { width: 40%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-table thead th { width: auto; background: var(--app-bg-alt); }
+
+.diff-detail-row { display: grid; grid-template-columns: minmax(100px, 25%) minmax(0, 1fr); gap: var(--space-md); padding: var(--space-xs) 0; }
+.diff-detail-label { color: var(--app-text-muted); }
+.diff-detail-value { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-sense-block details { margin-top: var(--space-sm); color: var(--app-text-muted); font-size: var(--text-xs); }

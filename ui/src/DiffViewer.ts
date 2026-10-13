@@ -1,5 +1,6 @@
 // Diff viewer component
 
+import { discoverDiffFields } from "./diffFields";
 import { invoke } from "@tauri-apps/api/core";
 import { LexiconEntry, LexiconSense } from "./LexiconTable";
 
@@ -20,7 +21,6 @@ let onChange: (() => void) | null = null;
 let lastPayload: { left: any; right: any } | null = null; // { left, right }
 let includeEntryFields: Set<string> | null = null; // Set<string> or null for default all
 let includeSenseFields: Set<string> | null = null; // Set<string>
-let includeVariants = true;
 let availableEntryFields: Set<string> | null = null; // Set<string>
 let availableSenseFields: Set<string> | null = null; // Set<string>
 
@@ -192,56 +192,35 @@ function switchFieldsTab(tab: HTMLElement) {
   if (section) section.classList.add("active");
 }
 
-function openFieldsDialog() {
-  // Build lists from union of Left and Right (if available), else from working
-  const lexWorking = getLexicon ? getLexicon() : null;
-  // const lexLeft = null; // Future: merge fields from left as well
-  // Build sets
-  const entryFields = new Set([
-    "lexical-unit",
-    "morph-type",
-    "variant",
-    "id",
-    "dateCreated",
-    "dateModified",
-  ]);
-  const senseFields = new Set(["grammatical-category", "gloss", "id"]);
-  function addEntryKeys(lex: Lexicon | null) {
-    if (!lex) return;
-    (lex.entry || []).forEach((e) => {
-      Object.keys(e || {}).forEach((k) => {
-        if (k === "$" || k === "sense" || k === "variant") return;
-        entryFields.add(k);
-      });
-      if (Array.isArray(e && e.variant)) entryFields.add("variant");
-      (e.sense || []).forEach((s) => {
-        Object.keys(s || {}).forEach((k) => {
-          if (k === "$") return;
-          senseFields.add(k);
-        });
-      });
-    });
+async function openFieldsDialog() {
+  const payload = buildDiffPayload();
+  if (!payload) return;
+  const trigger = $("diffSelectFieldsBtn") as HTMLButtonElement | null;
+  if (trigger) trigger.disabled = true;
+  let sources: any[];
+  try {
+    sources = await Promise.all([payload.left, payload.right].map(source =>
+      source.type === "object" ? Promise.resolve(source.data) :
+        invoke("get_lexicon_from_source", { source })
+    ));
+  } catch (error) {
+    renderError(`Could not discover comparison fields: ${String(error)}`);
+    return;
+  } finally {
+    if (trigger) trigger.disabled = false;
   }
-  addEntryKeys(lexWorking);
+  const { entry: entryFields, sense: senseFields } = discoverDiffFields(sources);
+  // Preserve exclusions, while selecting newly discovered content by default.
+  const mergeNewFields = (fields: Set<string>, previous: Set<string> | null, selected: Set<string> | null) => {
+    if (!selected) return;
+    fields.forEach(field => {
+      if (!previous?.has(field) && !["dateCreated", "dateModified"].includes(field)) selected.add(field);
+    });
+  };
+  mergeNewFields(entryFields, availableEntryFields, includeEntryFields);
+  mergeNewFields(senseFields, availableSenseFields, includeSenseFields);
   availableEntryFields = new Set(entryFields);
   availableSenseFields = new Set(senseFields);
-  // Populate from header custom fields as well
-  const header =
-    lexWorking &&
-    (Array.isArray(lexWorking.header)
-      ? lexWorking.header[0]
-      : lexWorking.header);
-  if (header && header["custom-fields"] && header["custom-fields"][0]) {
-    const specs = header["custom-fields"][0]["field-spec"];
-    const arr = Array.isArray(specs) ? specs : specs ? [specs] : [];
-    arr.forEach((f: any) => {
-      if (f && f.$ && f.$.name) {
-        const lvl = f.$.level || "entry";
-        if (lvl === "entry") entryFields.add(f.$.name);
-        if (lvl === "sense") senseFields.add(f.$.name);
-      }
-    });
-  }
 
   // Default selections: include everything except ids/timestamps
   if (!includeEntryFields) {
@@ -283,7 +262,7 @@ function openFieldsDialog() {
         });
         label.appendChild(cb);
         const span = document.createElement("span");
-        span.textContent = " " + name;
+        span.textContent = " " + name.replace(/^field \[name=(.*)\]$/, "$1 (custom field)");
         label.appendChild(span);
         li.appendChild(label);
         ul.appendChild(li);
@@ -376,229 +355,127 @@ function renderError(msg: string) {
 function renderResults(diff: any) {
   const out = $("diffResults");
   if (!out) return;
-  out.innerHTML = "";
-  if (!diff || !diff.summary) {
-    out.textContent = "No differences or failed to compute diff.";
-    return;
-  }
-
-  // Controls check
-  const leftType = (document.getElementById("diffLeftSource") as HTMLSelectElement)
-    ?.value;
-  // const rightType = (document.getElementById("diffRightSource") as HTMLSelectElement)?.value;
-  const allowed = /* rightType === 'working' && */ leftType === "disk" ||
-    leftType === "head";
-
-  // Summary
-  const { summary, entries } = diff;
-  const sum = document.createElement("div");
-  sum.className = "diff-summary";
-  sum.innerHTML = `
-        <div class="diff-stat added">Added: ${summary.entries_added}</div>
-        <div class="diff-stat removed">Removed: ${summary.entries_removed}</div>
-        <div class="diff-stat modified">Modified: ${summary.entries_modified}</div>
-    `;
-  out.appendChild(sum);
-
-  if (!allowed) {
-    const warning = document.createElement("div");
-    warning.className = "diff-warning";
-    warning.textContent =
-      'Note: Restore/merge actions are disabled. To enable them, set "Compare" to Disk/HEAD and "vs" to Working.';
-    out.appendChild(warning);
-  }
-
-  const section = document.createElement("div");
-  section.className = "diff-section";
-
-  // Helper to create a table row
-  const createRow = (label: string, oldVal: any, newVal: any) => {
-    const tr = document.createElement("tr");
-    const th = document.createElement("th");
-    th.textContent = label;
-    const tdOld = document.createElement("td");
-    tdOld.className = "diff-val-old";
-    tdOld.textContent = oldVal || "null";
-    if (!oldVal) tdOld.classList.add("diff-null");
-
-    const tdNew = document.createElement("td");
-    tdNew.className = "diff-val-new";
-    tdNew.textContent = newVal || "null";
-    if (!newVal) tdNew.classList.add("diff-null");
-
-    tr.appendChild(th);
-    tr.appendChild(tdOld);
-    tr.appendChild(tdNew);
-    return tr;
+  out.replaceChildren();
+  if (!diff?.summary) { out.textContent = "Unable to compute comparison."; return; }
+  const source = (id: string) => document.getElementById(id) as HTMLSelectElement;
+  const left = source("diffLeftSource");
+  const right = source("diffRightSource");
+  const allowed = right.value === "working" && ["disk", "head"].includes(left.value);
+  const add = (parent: HTMLElement, tag: string, text: string, cls = "") => {
+    const el = document.createElement(tag); el.textContent = text; el.className = cls;
+    parent.appendChild(el); return el;
   };
-
-  // Added entries
-  if (entries.added && entries.added.length) {
-    const h = document.createElement("h4");
-    h.textContent = "Added Entries (in Right)";
-    section.appendChild(h);
-    entries.added.forEach((id: string) => {
-      const card = document.createElement("div");
-      card.className = "diff-card";
-      card.innerHTML = `
-            <div class="diff-card-header">
-                <span class="diff-card-title">${id} <span class="diff-tag added">Added</span></span>
-                <div class="diff-card-actions">
-                    <button class="button small" ${!allowed ? "disabled" : ""
-        } onclick="window.DiffViewer.actions.deleteEntry('${id}', '${leftType}')">Delete</button>
-                </div>
-            </div>
-        `;
-      section.appendChild(card);
+  const text = (v: any): string => {
+    if (v === null || v === undefined) return "Not present";
+    if (v === "") return "Empty";
+    if (Array.isArray(v)) return v.map(text).join("; ");
+    if (typeof v === "object") return Object.entries(v).map(([k, val]) =>
+      k === "_" ? text(val) : `${k === "$" ? "Attributes" : k}: ${text(val)}`).join(" · ");
+    return String(v);
+  };
+  const name = (v: string) => v.replace(/^field \[name=([^\]]+)\]/, "$1")
+    .replace(/@/g, "").replace(/-/g, " ");
+  const table = (parent: HTMLElement, changes: any[]) => {
+    const t = add(parent, "table", "", "diff-table");
+    const head = add(t, "thead", ""); const hr = add(head, "tr", "");
+    ["Field", `Before · ${left.selectedOptions[0].text}`, `After · ${right.selectedOptions[0].text}`]
+      .forEach(label => add(hr, "th", label));
+    const body = add(t, "tbody", "");
+    changes.forEach(c => {
+      const row = add(body, "tr", ""); add(row, "th", name(c.name));
+      add(row, "td", text(c.before), "diff-val-old");
+      add(row, "td", text(c.after), "diff-val-new");
     });
-  }
-
-  // Removed entries
-  if (entries.removed && entries.removed.length) {
-    const h = document.createElement("h4");
-    h.textContent = "Removed Entries (missing in Right)";
-    section.appendChild(h);
-    entries.removed.forEach((id: string) => {
-      const card = document.createElement("div");
-      card.className = "diff-card";
-      card.innerHTML = `
-            <div class="diff-card-header">
-                <span class="diff-card-title">${id} <span class="diff-tag removed">Removed</span></span>
-                <div class="diff-card-actions">
-                    <button class="button small" ${!allowed ? "disabled" : ""
-        } onclick="window.DiffViewer.actions.restoreEntry('${id}', '${leftType}')">Restore</button>
-                </div>
-            </div>
-        `;
-      section.appendChild(card);
-    });
-  }
-
-  // Modified entries
-  if (entries.modified && entries.modified.length) {
-    const h = document.createElement("h4");
-    h.textContent = "Modified Entries";
-    section.appendChild(h);
-
-    entries.modified.forEach((m: any) => {
-      const card = document.createElement("div");
-      card.className = "diff-card";
-
-      const header = document.createElement("div");
-      header.className = "diff-card-header";
-      const title = document.createElement("span");
-      title.className = "diff-card-title";
-      title.textContent = `${m.id} ${m.lexical_unit ? "(" + m.lexical_unit + ")" : ""
-        }`;
-
-      const actions = document.createElement("div");
-      actions.className = "diff-card-actions";
-      const restoreBtn = document.createElement("button");
-      restoreBtn.className = "button small";
-      restoreBtn.textContent = "Restore Full Entry";
-      restoreBtn.disabled = !allowed;
-      restoreBtn.onclick = () =>
-        window.DiffViewer.actions.restoreEntry(m.id, leftType);
-      actions.appendChild(restoreBtn);
-
-      header.appendChild(title);
-      header.appendChild(actions);
-      card.appendChild(header);
-
-      const body = document.createElement("div");
-      body.className = "diff-card-body";
-
-      // Fields table
-      if (m.fields && m.fields.length) {
-        const table = document.createElement("table");
-        table.className = "diff-table";
-        m.fields.forEach((f: any) => {
-          if (f.kind === "variants") {
-            table.appendChild(
-              createRow(
-                "Variants",
-                JSON.stringify(f.before),
-                JSON.stringify(f.after)
-              )
-            );
-          } else {
-            table.appendChild(createRow(f.name, f.before, f.after));
-          }
-        });
-        body.appendChild(table);
+  };
+  const summary = add(out, "div", "", "diff-summary");
+  ["added", "removed", "modified"].forEach(kind =>
+    add(summary, "span", `${diff.summary[`entries_${kind}`]} ${kind}`, `diff-stat ${kind}`));
+  add(out, "p", `Changes from ${left.selectedOptions[0].text} → ${right.selectedOptions[0].text}.`);
+  if (!allowed) add(out, "p", "To restore changes, compare Disk or HEAD → Working.", "diff-warning");
+  if (!Object.values(diff.summary).some(Boolean)) add(out, "p", "No changes in the selected fields.", "diff-empty-state");
+  const button = (parent: HTMLElement, label: string, action: () => void) => {
+    if (!allowed) return;
+    const btn = add(parent, "button", label, "button small") as HTMLButtonElement;
+    btn.type = "button"; btn.onclick = action;
+  };
+  const details = (parent: HTMLElement, entry: any) => {
+    if (!entry) return;
+    const list = (v: any): any[] => Array.isArray(v) ? v : [v];
+    const valueText = (v: any): string => {
+      if (v === null || v === undefined || v === "") return "Empty";
+      if (Array.isArray(v)) return v.map(valueText).join("; ");
+      if (typeof v !== "object") return String(v);
+      const parts: string[] = [];
+      if (v._ !== undefined) parts.push(valueText(v._));
+      Object.entries(v).filter(([k]) => k !== "$" && k !== "_").forEach(([k, val]) =>
+        parts.push(`${name(k)}: ${valueText(val)}`));
+      return parts.join(" · ") || "Empty";
+    };
+    const row = (container: HTMLElement, label: string, value: string) => {
+      const r = add(container, "div", "", "diff-detail-row");
+      add(r, "span", label, "diff-detail-label");
+      add(r, "span", value, "diff-detail-value");
+    };
+    const fields = (container: HTMLElement, node: any) => {
+      Object.entries(node).filter(([k]) => !["$", "sense", "lexical-unit"].includes(k))
+        .forEach(([k, v]) => list(v).forEach(item => {
+          const attrs = item && typeof item === "object" ? item.$ || {} : {};
+          const label = k === "field" ? attrs.name || "Custom field" : name(k);
+          const language = attrs.lang ? ` (${attrs.lang})` : "";
+          row(container, label + language, valueText(item));
+          Object.entries(attrs).filter(([key]) => !["name", "lang", "id"].includes(key))
+            .forEach(([key, val]) => row(container, `${label} · ${name(key)}`, valueText(val)));
+        }));
+    };
+    fields(parent, entry);
+    list(entry.sense || []).forEach((sense, index) => {
+      const block = add(parent, "div", "", "diff-sense-block");
+      add(block, "div", `Sense ${sense.$?.order || index + 1}`, "diff-sense-header");
+      fields(block, sense);
+      if (sense.$?.id) {
+        const metadata = document.createElement("details");
+        add(metadata, "summary", "Sense ID");
+        add(metadata, "small", sense.$.id, "diff-entry-id");
+        block.appendChild(metadata);
       }
-
-      // Senses
-      if (m.senses) {
-        const s = m.senses;
-
-        if (s.added && s.added.length) {
-          s.added.forEach((sid: string) => {
-            const block = document.createElement("div");
-            block.className = "diff-sense-block";
-            block.innerHTML = `
-                        <div class="diff-sense-header">
-                            <span>Sense ${sid} <span class="diff-tag added">Added</span></span>
-                            <button class="button small" ${!allowed ? "disabled" : ""
-              } onclick="window.DiffViewer.actions.deleteSense('${m.id}', '${sid}', '${leftType}')">Delete</button>
-                        </div>
-                      `;
-            body.appendChild(block);
-          });
-        }
-
-        if (s.removed && s.removed.length) {
-          s.removed.forEach((sid: string) => {
-            const block = document.createElement("div");
-            block.className = "diff-sense-block";
-            block.innerHTML = `
-                        <div class="diff-sense-header">
-                            <span>Sense ${sid} <span class="diff-tag removed">Removed</span></span>
-                            <button class="button small" ${!allowed ? "disabled" : ""
-              } onclick="window.DiffViewer.actions.restoreSense('${m.id}', '${sid}', '${leftType}')">Restore</button>
-                        </div>
-                      `;
-            body.appendChild(block);
-          });
-        }
-
-        if (s.modified && s.modified.length) {
-          s.modified.forEach((sm: any) => {
-            const block = document.createElement("div");
-            block.className = "diff-sense-block";
-
-            const sheader = document.createElement("div");
-            sheader.className = "diff-sense-header";
-            sheader.innerHTML = `
-                        <span>Sense ${sm.id} <span class="diff-tag modified">Modified</span></span>
-                        <button class="button small" ${!allowed ? "disabled" : ""
-              } onclick="window.DiffViewer.actions.restoreSense('${m.id}', '${sm.id}', '${leftType}')">Restore</button>
-                      `;
-            block.appendChild(sheader);
-
-            const table = document.createElement("table");
-            table.className = "diff-table";
-            sm.changes.forEach((c: any) => {
-              table.appendChild(createRow(c.name, c.before, c.after));
-            });
-            block.appendChild(table);
-
-            body.appendChild(block);
-          });
-        }
-      }
-
-      card.appendChild(body);
-      section.appendChild(card);
     });
-  }
-
-  out.appendChild(section);
+  };
+  const entries = diff.entries;
+  ["added", "removed", "modified"].forEach(kind => {
+    if (!entries[kind]?.length) return;
+    add(out, "h4", `${kind[0].toUpperCase() + kind.slice(1)} entries`);
+    entries[kind].forEach((item: any, index: number) => {
+      const entry = kind === "modified" ? null : entries[`${kind}_details`]?.[index];
+      const id = kind === "modified" ? item.id : item;
+      const label = kind === "modified" ? item.lexical_unit : text(entry?.["lexical-unit"] ?? "Unnamed entry");
+      const card = add(out, "div", "", "diff-card");
+      const header = add(card, "div", "", "diff-card-header");
+      const title = add(header, "div", label || "Unnamed entry", "diff-card-title");
+      add(title, "small", id, "diff-entry-id");
+      button(header, kind === "added" ? "Remove from working" : "Restore entry", () =>
+        kind === "added" ? applyDeleteEntry(id, left.value) : applyRestoreEntry(id, left.value));
+      const body = add(card, "div", "", "diff-card-body");
+      if (entry) details(body, entry);
+      if (kind !== "modified") return;
+      if (item.fields?.length) table(body, item.fields);
+      const senses = item.senses;
+      ["added", "removed", "modified"].forEach(sk => senses?.[sk]?.forEach((sense: any, i: number) => {
+        const sid = sk === "modified" ? sense.id : sense;
+        const block = add(body, "div", "", "diff-sense-block");
+        const sh = add(block, "div", "", "diff-sense-header");
+        add(sh, "span", `Sense · ${sk}`);
+        add(block, "small", sid, "diff-entry-id");
+        button(sh, sk === "added" ? "Remove sense" : "Restore sense", () =>
+          sk === "added" ? applyDeleteSense(id, sid, left.value) : applyRestoreSense(id, sid, left.value));
+        if (sk === "modified") table(block, sense.changes);
+        else details(block, senses[`${sk}_details`]?.[i]);
+      }));
+    });
+  });
 }
 
 async function ensureAllowed(leftType: string) {
-  // const rightType = (document.getElementById("diffRightSource") as HTMLSelectElement)?.value;
-  // if (rightType !== 'working') return false;
+  if (lastPayload?.right?.type !== "object") return false;
   if (leftType !== "disk" && leftType !== "head") return false;
   if (leftType === "head") {
     const ok = confirm(
@@ -640,6 +517,7 @@ async function applyRestoreEntry(entryId: string, leftType: string) {
     else rightLex.entry!.push(clone);
     if (onChange) onChange();
     // Recompute diff with current field selection
+    payload.right = buildDiffPayload()!.right;
     const opts = buildDiffOptions();
     const diff = await invoke("diff", {
       left: payload.left,
@@ -661,6 +539,7 @@ async function applyDeleteEntry(entryId: string, leftType: string) {
   const { idx } = findEntryById(rightLex, entryId);
   if (idx >= 0) rightLex.entry!.splice(idx, 1);
   if (onChange) onChange();
+  payload.right = buildDiffPayload()!.right;
   const opts = buildDiffOptions();
   const diff = await invoke("diff", {
     left: payload.left,
@@ -706,6 +585,7 @@ async function applyRestoreSense(entryId: string, senseId: string, leftType: str
     if (sidx >= 0) rentry.sense[sidx] = clone;
     else rentry.sense.push(clone);
     if (onChange) onChange();
+    payload.right = buildDiffPayload()!.right;
     const opts = buildDiffOptions();
     const diff = await invoke("diff", {
       left: payload.left,
@@ -731,6 +611,7 @@ async function applyDeleteSense(entryId: string, senseId: string, leftType: stri
   );
   if (sidx >= 0) rentry.sense.splice(sidx, 1);
   if (onChange) onChange();
+  payload.right = buildDiffPayload()!.right;
   const opts = buildDiffOptions();
   const diff = await invoke("diff", {
     left: payload.left,

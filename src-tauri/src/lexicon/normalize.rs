@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::collections::HashSet;
 
 use super::model::{attr_value, entry_id, ATTR_PREFIX};
 
@@ -39,48 +38,26 @@ fn normalize_entry(mut entry: Value, ignore_timestamps: bool) -> Value {
         if let Some(senses) = map.get_mut("sense") {
             *senses = sorted_senses(senses);
         }
-
-        let standard_keys: HashSet<_> = ["$", "lexical-unit", "morph-type", "sense", "variant"]
-            .iter()
-            .copied()
-            .collect();
-        for (key, value) in map.iter_mut() {
-            if !standard_keys.contains(key.as_str()) {
-                *value = ensure_list_first_str(value);
-            }
-        }
     }
     entry
 }
 
 fn ensure_list_first_str(value: &mut Value) -> Value {
     match value {
-        Value::Array(items) => {
-            if items.is_empty() {
-                Value::Array(vec![Value::String(String::new())])
-            } else {
-                Value::Array(vec![items[0].clone()])
-            }
-        }
-        Value::String(_) => Value::Array(vec![value.clone()]),
-        Value::Null => Value::Array(vec![Value::String(String::new())]),
-        _ => Value::Array(vec![Value::String(value.to_string())]),
+        Value::Array(_) => value.clone(),
+        _ => Value::Array(vec![value.clone()]),
     }
 }
 
 fn sorted_variants(value: &Value) -> Value {
-    let mut items = Vec::new();
-    if let Value::Array(values) = value {
-        for value in values {
-            if let Value::String(text) = value {
-                if !text.is_empty() {
-                    items.push(text.clone());
-                }
-            }
-        }
-    }
-    items.sort();
-    Value::Array(items.into_iter().map(Value::String).collect())
+    let mut items = match value {
+        Value::Array(values) => values.clone(),
+        Value::Null => Vec::new(),
+        other => vec![other.clone()],
+    };
+    items.retain(|v| v != "");
+    items.sort_by_key(Value::to_string);
+    Value::Array(items)
 }
 
 fn sorted_senses(value: &Value) -> Value {

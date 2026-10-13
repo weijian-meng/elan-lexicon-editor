@@ -82,42 +82,125 @@ fn diff_entries_core(left: Value, right: Value, opts: &DiffOptions) -> Result<Va
     Ok(serde_json::json!({
         "added": added,
         "removed": removed,
-        "modified": modified
+        "modified": modified,
+        "added_details": added.iter().map(|id| &right_idx[id]).collect::<Vec<_>>(),
+        "removed_details": removed.iter().map(|id| &left_idx[id]).collect::<Vec<_>>()
     }))
 }
 
-fn diff_entry_fields(left: &Value, right: &Value, _opts: &DiffOptions) -> Vec<Value> {
-    let mut changes = Vec::new();
-    let Some(left_map) = left.as_object() else {
-        return changes;
-    };
-    let Some(right_map) = right.as_object() else {
-        return changes;
-    };
-
-    let keys: HashSet<_> = left_map
-        .keys()
-        .chain(right_map.keys())
-        .filter(|key| *key != "sense" && *key != "$")
-        .collect();
-
-    for key in keys {
-        let before = first_text(left_map.get(key)).unwrap_or_default();
-        let after = first_text(right_map.get(key)).unwrap_or_default();
-        if before != after {
-            changes.push(serde_json::json!({
-                "kind": "field",
-                "name": key,
-                "before": before,
-                "after": after
-            }));
+// Flatten XML-shaped values without dropping repeated text, language, or custom field names.
+fn structural_fields(
+    value: &Value,
+    exclude_senses: bool,
+) -> std::collections::BTreeMap<String, Value> {
+    fn walk(value: &Value, path: String, out: &mut std::collections::BTreeMap<String, Value>) {
+        match value {
+            Value::Array(items) => {
+                let mut seen = HashMap::<String, usize>::new();
+                for (i, item) in items.iter().enumerate() {
+                    let qualifier = ["name", "lang"]
+                        .iter()
+                        .filter_map(|key| {
+                            item.get("$")
+                                .and_then(|a| a.get(*key))
+                                .and_then(Value::as_str)
+                                .map(|v| format!("{}={}", key, v))
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let label = if !qualifier.is_empty() {
+                        let count = seen.entry(qualifier.clone()).or_default();
+                        *count += 1;
+                        format!("{} [{}] [{}]", path, qualifier, count)
+                    } else if items.len() > 1 {
+                        format!("{} [{}]", path, i + 1)
+                    } else {
+                        path.clone()
+                    };
+                    walk(item, label, out);
+                }
+            }
+            Value::Object(map) => {
+                for (key, v) in map {
+                    if key == "_" {
+                        walk(v, path.clone(), out);
+                    } else if key == "$" {
+                        if let Some(attrs) = v.as_object() {
+                            for (k, v) in attrs {
+                                if k != "name" && k != "lang" && k != "id" {
+                                    walk(v, format!("{} / @{}", path, k), out);
+                                }
+                            }
+                        }
+                    } else {
+                        walk(v, format!("{} / {}", path, key), out);
+                    }
+                }
+            }
+            _ => {
+                out.insert(path, value.clone());
+            }
         }
     }
-
-    changes
+    let mut out = std::collections::BTreeMap::new();
+    if let Some(map) = value.as_object() {
+        for (key, v) in map {
+            if key == "sense" && exclude_senses {
+                continue;
+            }
+            if key == "$" {
+                if let Some(attrs) = v.as_object() {
+                    for (k, v) in attrs {
+                        if k != "id" {
+                            walk(v, k.clone(), &mut out);
+                        }
+                    }
+                }
+            } else {
+                walk(v, key.clone(), &mut out);
+            }
+        }
+    }
+    out
 }
 
-fn diff_entry_senses(left: &Value, right: &Value, _opts: &DiffOptions) -> Value {
+fn diff_fields(left: &Value, right: &Value, selection: &Option<Vec<String>>) -> Vec<Value> {
+    let left = structural_fields(left, true);
+    let right = structural_fields(right, true);
+    let keys: std::collections::BTreeSet<_> = left.keys().chain(right.keys()).collect();
+    keys.into_iter()
+        .filter(|key| {
+            selection
+                .as_ref()
+                .map(|fields| {
+                    fields.iter().any(|f| {
+                        *key == f
+                            || key.starts_with(&format!("{} [", f))
+                            || key.starts_with(&format!("{} /", f))
+                            || key.starts_with(&format!("field [name={}]", f))
+                    })
+                })
+                .unwrap_or(true)
+        })
+        .filter_map(|key| {
+            let before = left.get(key);
+            let after = right.get(key);
+            if before == after {
+                None
+            } else {
+                Some(serde_json::json!({
+                    "kind": "field", "name": key, "before": before, "after": after
+                }))
+            }
+        })
+        .collect()
+}
+
+fn diff_entry_fields(left: &Value, right: &Value, opts: &DiffOptions) -> Vec<Value> {
+    diff_fields(left, right, &opts.include_entry_fields)
+}
+
+fn diff_entry_senses(left: &Value, right: &Value, opts: &DiffOptions) -> Value {
     let left_senses = left
         .get("sense")
         .and_then(|value| value.as_array())
@@ -152,32 +235,7 @@ fn diff_entry_senses(left: &Value, right: &Value, _opts: &DiffOptions) -> Value 
         let left_item = left_idx.get(key).unwrap();
         let right_item = right_idx.get(key).unwrap();
 
-        let Some(left_map) = left_item.as_object() else {
-            continue;
-        };
-        let Some(right_map) = right_item.as_object() else {
-            continue;
-        };
-
-        let field_keys: HashSet<_> = left_map
-            .keys()
-            .chain(right_map.keys())
-            .filter(|key| *key != "$")
-            .collect();
-        let mut sense_changes = Vec::new();
-
-        for field_key in field_keys {
-            let before = first_text(left_map.get(field_key)).unwrap_or_default();
-            let after = first_text(right_map.get(field_key)).unwrap_or_default();
-            if before != after {
-                sense_changes.push(serde_json::json!({
-                    "kind": "field",
-                    "name": field_key,
-                    "before": before,
-                    "after": after
-                }));
-            }
-        }
+        let sense_changes = diff_fields(left_item, right_item, &opts.include_sense_fields);
 
         if !sense_changes.is_empty() {
             modified.push(serde_json::json!({
@@ -187,10 +245,13 @@ fn diff_entry_senses(left: &Value, right: &Value, _opts: &DiffOptions) -> Value 
         }
     }
 
+    modified.sort_by_key(|v| v["id"].as_str().unwrap_or_default().to_owned());
     serde_json::json!({
         "added": added,
         "removed": removed,
         "modified": modified,
+        "added_details": added.iter().map(|id| &right_idx[id]).collect::<Vec<_>>(),
+        "removed_details": removed.iter().map(|id| &left_idx[id]).collect::<Vec<_>>(),
         "reordered": false
     })
 }
@@ -199,6 +260,58 @@ fn diff_entry_senses(left: &Value, right: &Value, _opts: &DiffOptions) -> Value 
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn preserves_repeated_custom_fields_and_multilingual_glosses() {
+        let left = serde_json::json!({"entry": [{"$": {"id": "e"},
+            "variant": ["a", "b"], "field": [
+                {"$": {"name": "custom"}, "_": "first"},
+                {"$": {"name": "custom"}, "_": "second"}],
+            "sense": [{"$": {"id": "s"}, "gloss": [
+                {"$": {"lang": "en"}, "_": "one"},
+                {"$": {"lang": "fr"}, "_": "un"}]}]}]});
+        let mut right = left.clone();
+        right["entry"][0]["variant"][1] = serde_json::json!("c");
+        right["entry"][0]["field"][1]["_"] = serde_json::json!("changed");
+        right["entry"][0]["sense"][0]["gloss"][1]["_"] = serde_json::json!("une");
+        let result = diff_lexicons(
+            left.clone(),
+            right.clone(),
+            DiffOptions {
+                ignore_timestamps: Some(true),
+                include_entry_fields: None,
+                include_sense_fields: None,
+            },
+        )
+        .unwrap();
+        let changed = &result["entries"]["modified"][0];
+        assert_eq!(changed["fields"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            changed["senses"]["modified"][0]["changes"][0]["before"],
+            "un"
+        );
+        let filtered = diff_lexicons(
+            left,
+            right,
+            DiffOptions {
+                ignore_timestamps: Some(true),
+                include_entry_fields: Some(vec!["custom".into()]),
+                include_sense_fields: Some(vec![]),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            filtered["entries"]["modified"][0]["fields"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(filtered["entries"]["modified"][0]["senses"]["modified"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
 
     #[test]
     fn reports_added_removed_and_modified_entries_and_senses() {
