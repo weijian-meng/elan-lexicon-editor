@@ -28,6 +28,10 @@ To mimic a "referenced" lexicon, you need to store the lexicon file elsewhere (e
 - Semantic change tracking against disk or git `HEAD`, useful when lexicon files live in a git repository
 - XML round-trip with stable child ordering and forced array fields
 
+Optional field grouping and variant metadata displays are configured by
+`.lexicon-view.json` in the same folder as the lexicon XML file. The app loads
+this file when opening the lexicon; reopen the lexicon after changing it.
+
 ## Prerequisites
 
 - Node.js 18+ (tested with Node 20)
@@ -62,6 +66,7 @@ Release packaging is currently focused on macOS and Windows desktop bundles.
 ## Testing
 
 ```bash
+node --test         # Frontend behavior, including Windows sidecar paths
 cargo test -p app   # Runs Rust tests (XML utilities, etc.)
 ```
 
