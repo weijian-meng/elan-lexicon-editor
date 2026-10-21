@@ -559,10 +559,12 @@ async function handleOpenFile() {
 
             // Try loading sidecar view config from same directory
             try {
-                const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-                const sidecarPath = dir + '/.lexicon-view.json';
+                // File dialogs return native paths: Windows also uses backslashes.
+                // Keep the separator so drive roots and UNC shares stay intact.
+                const lastSeparator = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+                const sidecarPath = filePath.slice(0, lastSeparator + 1) + '.lexicon-view.json';
                 const sidecarContent = await invoke<string>("read_text_file", { filePath: sidecarPath });
-                const viewConfig = JSON.parse(sidecarContent);
+                const viewConfig = JSON.parse(sidecarContent.replace(/^\uFEFF/, ''));
                 EntryEditor.setViewConfig(viewConfig);
             } catch {
                 EntryEditor.setViewConfig(null);
