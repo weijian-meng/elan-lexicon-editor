@@ -22,6 +22,7 @@ import "./assets/diff-styles.css";
 let currentLexicon: any = null;
 let currentFilePath: string | null = null;
 let isModified = false;
+let editRevision = 0;
 let selectedEntry: LexiconEntry | null = null;
 // Active entry-list filter from the search bar (null = show all entries)
 let entryFilter: SearchBar.EntryMatcher | null = null;
@@ -334,7 +335,7 @@ function init() {
         closeConfirmSave.addEventListener("click", async () => {
             if (closeConfirmModal) closeConfirmModal.style.display = "none";
             const saved = await handleSaveFile();
-            if (saved) {
+            if (saved && !isModified) {
                 performCloseFile();
             }
         });
@@ -383,6 +384,7 @@ function handleEntrySelect(entry: LexiconEntry) {
 function handleLexiconChange() {
     console.log("handleLexiconChange called");
     // alert("DEBUG: Lexicon Changed!"); // Uncomment if needed, but let's try indicator first
+    editRevision++;
     setIsModified(true);
     scheduleRenderEntries();
 
@@ -597,31 +599,48 @@ async function handleOpenFile() {
     }
 }
 
+function canSaveMetadataDrafts(): boolean {
+    const entry = EntryEditor.findEntryWithMetadataDraft();
+    if (!entry) return true;
+
+    const name = getFirstElanText(entry["lexical-unit"]).trim() || entry.$?.id || "unnamed entry";
+    alert(`Add a spelling for the metadata draft in "${name}", or clear the draft before saving.`);
+    return false;
+}
+
 async function handleSaveFile(): Promise<boolean> {
-    if (!currentLexicon) return false;
+    const lexicon = currentLexicon;
+    if (!lexicon || !canSaveMetadataDrafts()) return false;
 
     try {
         // If we don't have a path, use save_file_dialog_command to pick one
         if (!currentFilePath) {
             const savedPath = await invoke<string>("save_file_dialog_command");
+            if (currentLexicon !== lexicon) return false;
             if (savedPath) {
                 currentFilePath = savedPath;
             } else {
                 return false; // Cancelled
             }
+            if (!canSaveMetadataDrafts()) return false;
         }
 
+        const revision = editRevision;
+        const filePath = currentFilePath;
         const xmlString = await invoke<string>("build_xml_command", {
-            data: { lexicon: currentLexicon },
+            data: { lexicon },
         });
 
+        if (currentLexicon !== lexicon) return false;
         await invoke("save_file_command", {
-            filePath: currentFilePath,
+            filePath,
             content: xmlString,
         });
 
-        setIsModified(false);
-        alert("File saved!");
+        if (currentLexicon !== lexicon) return false;
+        const hasNewerEdits = revision !== editRevision;
+        if (!hasNewerEdits) setIsModified(false);
+        alert(hasNewerEdits ? "File saved. Newer edits are still unsaved." : "File saved!");
         return true;
     } catch (e) {
         console.error(e);

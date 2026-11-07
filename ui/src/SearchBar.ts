@@ -1,7 +1,7 @@
 // Search bar controller: free-text query with optional case-sensitive,
 // whole-word, and regex matching, plus per-field scoping for the entry list filter.
 
-import { getElanTextValues } from "./elanText";
+import { getElanTextValues, toElanTextArray } from "./elanText";
 
 export type EntryMatcher = (entry: any) => boolean;
 
@@ -258,6 +258,30 @@ function renderFieldsList() {
   });
 }
 
+// Uses the same logical names for discovery and matching. ELAN stores custom
+// values as <field name="…">text</field>; "field" is not their search scope.
+// Keep unnamed field values and older direct custom elements searchable too.
+function forEachSearchField(
+  entry: any,
+  visit: (name: string, value: any) => void
+) {
+  if (!entry || typeof entry !== "object") return;
+  [entry, ...toElanTextArray(entry.sense)].forEach((node) => {
+    if (!node || typeof node !== "object") return;
+    Object.keys(node).forEach((key) => {
+      if (key === "$" || key === "sense") return;
+      if (key === "field") {
+        toElanTextArray(node[key]).forEach((field) => {
+          const name = field && typeof field === "object" ? field.$?.name : null;
+          visit(name || key, field);
+        });
+      } else {
+        visit(key, node[key]);
+      }
+    });
+  });
+}
+
 // Discovers searchable fields from the current lexicon: entry-level and
 // sense-level keys found in the data, plus custom fields declared in the
 // header. Known fields come first in a stable order, extras alphabetically.
@@ -266,25 +290,9 @@ function getAvailableFields(): { name: string; label: string }[] {
   const lexicon = getLexiconFn ? getLexiconFn() : null;
 
   if (lexicon) {
-    const entries = Array.isArray(lexicon.entry) ? lexicon.entry : [];
+    const entries = toElanTextArray(lexicon.entry);
     entries.forEach((entry: any) => {
-      if (!entry || typeof entry !== "object") return;
-      Object.keys(entry).forEach((key) => {
-        if (key === "$" || key === "sense") return;
-        names.add(key);
-      });
-      const senses = Array.isArray(entry.sense)
-        ? entry.sense
-        : entry.sense
-          ? [entry.sense]
-          : [];
-      senses.forEach((sense: any) => {
-        if (!sense || typeof sense !== "object") return;
-        Object.keys(sense).forEach((key) => {
-          if (key === "$") return;
-          names.add(key);
-        });
-      });
+      forEachSearchField(entry, (name) => names.add(name));
     });
 
     const header = Array.isArray(lexicon.header)
@@ -294,7 +302,12 @@ function getAvailableFields(): { name: string; label: string }[] {
       const specs = header["custom-fields"][0]["field-spec"];
       const arr = Array.isArray(specs) ? specs : specs ? [specs] : [];
       arr.forEach((spec: any) => {
-        if (spec && spec.$ && spec.$.name) names.add(spec.$.name);
+        if (spec && spec.$ && spec.$.name) {
+          const name = spec.$.name === "field"
+            ? spec.$.nameAttr || spec.$.name
+            : spec.$.name;
+          names.add(name);
+        }
       });
     }
   }
@@ -347,26 +360,9 @@ function notifyFilterChange() {
 
 function getSearchTextValues(entry: any, fields: Set<string> | null): string[] {
   const values: string[] = [];
-  if (!entry || typeof entry !== "object") return values;
-
-  Object.keys(entry).forEach((key) => {
-    if (key === "$" || key === "sense") return;
-    if (fields && !fields.has(key)) return;
-    values.push(...getElanTextValues(entry[key]));
-  });
-
-  const senses = Array.isArray(entry.sense)
-    ? entry.sense
-    : entry.sense
-      ? [entry.sense]
-      : [];
-  senses.forEach((sense: any) => {
-    if (!sense || typeof sense !== "object") return;
-    Object.keys(sense).forEach((key) => {
-      if (key === "$") return;
-      if (fields && !fields.has(key)) return;
-      values.push(...getElanTextValues(sense[key]));
-    });
+  forEachSearchField(entry, (name, value) => {
+    if (fields && !fields.has(name)) return;
+    values.push(...getElanTextValues(value));
   });
 
   return values.map((text) => text.trim()).filter(Boolean);
