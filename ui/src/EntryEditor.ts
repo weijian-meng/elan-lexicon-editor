@@ -1,6 +1,8 @@
 // Entry Editor Module
 
 import {
+  ElanTextObject,
+  ElanTextValue,
   findNamedElanFieldIndex,
   resolveDeclaredElanField,
   getElanText,
@@ -168,14 +170,6 @@ function setNamedFieldText(target: { [key: string]: any }, name: string, text: s
   target.field = fields;
 }
 
-function setVariantArray(entry: LexiconEntry, variants: any[]) {
-  entry.variant = variants;
-}
-
-function setPhoneticArray(entry: LexiconEntry, phonetics: any[]) {
-  entry.phonetic = phonetics;
-}
-
 function setNoteArray(entry: LexiconEntry, notes: any[]) {
   if (notes.length > 0) {
     entry.note = notes;
@@ -184,92 +178,165 @@ function setNoteArray(entry: LexiconEntry, notes: any[]) {
   }
 }
 
-function serializeKeyedList(rows: { key: string; value: string }[], desc: KeyedListDescriptor): string {
-  return rows
-    .map((row) => `${desc.recordDelimiters[0]}${row.key}${desc.kvSeparator} ${row.value}${desc.recordDelimiters[1]}`)
-    .join(desc.recordSeparator);
+type KeyedPair = { key: string; value: string };
+type MetadataRecord = { raw: string; pair: KeyedPair | null };
+const metadataParents = ["variant", "phonetic"] as const;
+type MetadataParent = typeof metadataParents[number];
+
+// Keep drafts outside the XML model. Row identity survives rerenders and
+// deleting neighboring rows, even when several rows have no spelling yet.
+const metadataDrafts = new WeakMap<ElanTextObject, Map<string, string>>();
+
+function getMetadataDraft(row: ElanTextValue | undefined) {
+  return row && typeof row === "object" ? metadataDrafts.get(row) : undefined;
 }
 
-function getAttachedMetadataDescriptors(structuralField: string): KeyedListDescriptor[] {
-  if (!viewConfig || !viewConfig.parsers) return [];
-  return Object.values(viewConfig.parsers).filter(
-    (d): d is KeyedListDescriptor =>
-      d.type === "keyed-list" && d.attachTo === structuralField
+function hasMetadataDraft(entry: LexiconEntry) {
+  return metadataParents.some((field) => toElanTextArray(entry[field]).some(getMetadataDraft));
+}
+
+export function findEntryWithMetadataDraft() {
+  return getLexicon?.()?.entry?.find(hasMetadataDraft);
+}
+
+function getAttachedMetadataDescriptors(structuralField: string) {
+  return Object.entries(viewConfig?.parsers || {}).filter(
+    (entry): entry is [string, KeyedListDescriptor] =>
+      entry[1].type === "keyed-list" && entry[1].attachTo === structuralField
   );
 }
 
-function getMetadataValueForForm(desc: KeyedListDescriptor, formKey: string): string {
-  if (!selectedEntry || !selectedEntry.field) return "";
-  const rawValue = getNamedFieldText(selectedEntry.field, getMetadataFieldName(desc));
-  const rows = parseKeyedList(rawValue, desc);
-  const row = rows.find((r) => r.key === formKey);
-  return row ? row.value : "";
+function readAttachedMetadata(entry: LexiconEntry, name: string, desc: KeyedListDescriptor) {
+  const field = resolveDeclaredElanField(entry, { name });
+  const values = field.customName
+    ? getFieldArray(entry.field).filter((value) =>
+      value && typeof value === "object" && value.$?.name === field.customName)
+    : getFieldArray(entry[field.fieldName]);
+  const records: MetadataRecord[] = field.value.trim()
+    ? field.value.split(desc.recordSeparator).map((raw) => {
+      const [open, close] = desc.recordDelimiters;
+      const text = raw.trim();
+      const framed = (!open || text.startsWith(open)) && (!close || text.endsWith(close));
+      // Older files can omit both delimiters. A partly delimited record could
+      // be a fragment of a value containing the record separator.
+      const bare = (!open || !text.startsWith(open)) && (!close || !text.endsWith(close));
+      return { raw, pair: framed || bare ? parseKeyedListRecord(text, desc) : null };
+    })
+    : [];
+  let error = "";
+  if (values.length > 1) error = `Resolve the duplicate custom fields for ${name} first.`;
+  else if (records.some(({ pair }) => !pair)) error = `Check the stored format of ${name} first.`;
+  return { field, records, error };
 }
 
-function getMetadataFieldName(desc: KeyedListDescriptor): string {
-  if (!viewConfig || !viewConfig.parsers) return "";
-  for (const [name, d] of Object.entries(viewConfig.parsers)) {
-    if (d === desc) return name;
-  }
-  return "";
+function metadataMatches(records: MetadataRecord[], key: string) {
+  // In beta 6, new rows could leave behind keyless values. Their owner is unknown.
+  return key ? records.filter(({ pair }) => pair?.key === key && pair.value) : [];
 }
 
-function syncMetadataKeys(
-  structuralField: string,
-  oldKey: string | null,
-  newKey: string | null,
-  index: number
-): void {
-  if (!selectedEntry) return;
-  const descs = getAttachedMetadataDescriptors(structuralField);
-  for (const desc of descs) {
-    const fieldName = getMetadataFieldName(desc);
-    if (!fieldName) continue;
-    const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
-    let rows = parseKeyedList(rawValue, desc);
+function makeMetadataRecord(key: string, value: string, desc: KeyedListDescriptor) {
+  const [open, close] = desc.recordDelimiters;
+  const raw = `${open}${key}${desc.kvSeparator} ${value}${close}`;
+  if (!desc.recordSeparator || !desc.kvSeparator || raw.includes(desc.recordSeparator)) return null;
+  const pair = parseKeyedListRecord(raw, desc);
+  return pair?.key === key && pair.value === value ? { raw, pair } : null;
+}
 
-    if (oldKey !== null && newKey !== null) {
-      // Rename: find the row with oldKey and update its key
-      const row = rows.find((r) => r.key === oldKey);
-      if (row) {
-        row.key = newKey;
-      } else {
-        // Old key not found — insert a new row for newKey at the right position
-        rows.push({ key: newKey, value: "" });
-      }
-    } else if (oldKey !== null && newKey === null) {
-      // Remove: delete the row with oldKey
-      rows = rows.filter((r) => r.key !== oldKey);
-    } else if (oldKey === null && newKey !== null) {
-      // Add: insert a new row for newKey
-      rows.push({ key: newKey, value: "" });
-    }
+function writeAttachedMetadata(
+  entry: LexiconEntry,
+  field: ReturnType<typeof resolveDeclaredElanField>,
+  records: MetadataRecord[],
+  desc: KeyedListDescriptor
+) {
+  const value = records
+    .filter(({ pair }) => !pair || pair.value)
+    .map(({ raw }) => raw)
+    .join(desc.recordSeparator);
+  if (value === field.value) return;
+  if (field.customName) setNamedFieldText(entry, field.customName, value);
+  else setFirstElanText(entry, field.fieldName, value);
+}
 
-    const serialized = serializeKeyedList(rows, desc);
-    setNamedFieldText(selectedEntry, fieldName, serialized);
+function getMetadataInputState(
+  structuralField: string, index: number, name: string, desc: KeyedListDescriptor
+) {
+  if (!selectedEntry) return { value: "", error: "No entry selected." };
+  const forms = toElanTextArray(selectedEntry[structuralField]);
+  const { records, error } = readAttachedMetadata(selectedEntry, name, desc);
+  if (error) return { value: "", error };
+  const key = getElanText(forms[index]).trim();
+  if (!key) {
+    return {
+      value: getMetadataDraft(forms[index])?.get(name) || "",
+      error: "",
+      hint: "Draft until you enter a spelling.",
+    };
   }
+  if (forms.filter((form) => getElanText(form).trim() === key).length !== 1) {
+    return { value: "", error: "Metadata needs a unique spelling." };
+  }
+  const matches = metadataMatches(records, key);
+  if (matches.length > 1) {
+    return { value: "", error: `Resolve the duplicate records in ${name} before editing.` };
+  }
+  return { value: matches[0]?.pair?.value || "", error: "" };
 }
 
 function handleMetadataChange(
-  structuralField: string,
-  formKey: string,
-  desc: KeyedListDescriptor,
-  value: string
-): void {
+  structuralField: string, index: number, name: string, desc: KeyedListDescriptor, value: string
+) {
   if (!selectedEntry) return;
-  const fieldName = getMetadataFieldName(desc);
-  if (!fieldName) return;
-  const rawValue = getNamedFieldText(selectedEntry.field, fieldName);
-  const rows = parseKeyedList(rawValue, desc);
-  const row = rows.find((r) => r.key === formKey);
-  if (row) {
-    row.value = value;
-  } else {
-    rows.push({ key: formKey, value });
+  const state = getMetadataInputState(structuralField, index, name, desc);
+  if (state.error) return state.error;
+  const forms = toElanTextArray(selectedEntry[structuralField]);
+  if (index >= forms.length) return;
+  const row = forms[index];
+  const key = getElanText(row).trim();
+  const nextValue = value.trim();
+  if (nextValue === state.value) return;
+  const replacement = nextValue ? makeMetadataRecord(key, nextValue, desc) : null;
+  if (nextValue && !replacement) return "This text contains a separator used by the metadata field.";
+
+  if (!key) {
+    const draftRow = row && typeof row === "object" ? row : { _: getElanText(row) };
+    const draft = getMetadataDraft(draftRow) || new Map<string, string>();
+    if (nextValue) draft.set(name, nextValue);
+    else draft.delete(name);
+    if (draft.size) metadataDrafts.set(draftRow, draft);
+    else metadataDrafts.delete(draftRow);
+    forms[index] = draftRow;
+    selectedEntry[structuralField] = forms;
+    markChanged(false);
+    return;
   }
-  const serialized = serializeKeyedList(rows, desc);
-  setNamedFieldText(selectedEntry, fieldName, serialized);
+
+  const { field, records } = readAttachedMetadata(selectedEntry, name, desc);
+  const [previous] = metadataMatches(records, key);
+  if (previous) {
+    records.splice(records.indexOf(previous), 1, ...(replacement ? [replacement] : []));
+  } else if (replacement) {
+    records.push(replacement);
+  } else {
+    return;
+  }
+  writeAttachedMetadata(selectedEntry, field, records, desc);
   markChanged();
+}
+
+function bindValidatedTextInput(
+  input: HTMLInputElement, readValue: () => string, onEdit: (value: string) => string | void
+) {
+  input.oninput = () => {
+    const error = onEdit(input.value) || "";
+    input.setCustomValidity(error);
+    if (error) input.reportValidity();
+  };
+  input.onblur = () => {
+    if (input.validity.customError) {
+      input.value = readValue();
+      input.setCustomValidity("");
+    }
+  };
 }
 
 function fillMultiFieldContainer(
@@ -277,7 +344,7 @@ function fillMultiFieldContainer(
   values: any,
   inputClassName: string,
   groupClassName: string,
-  onChange: (index: number, value: string) => void,
+  onChange: (index: number, value: string) => string | void,
   onRemove: (index: number) => void,
   minItems?: number,
   structuralField?: string
@@ -285,6 +352,7 @@ function fillMultiFieldContainer(
   container.innerHTML = "";
   const items = toElanTextArray(values);
   const attachedDescs = structuralField ? getAttachedMetadataDescriptors(structuralField) : [];
+  const refreshMetadata: (() => void)[] = [];
   items.forEach((item, index) => {
     const group = document.createElement("div");
     group.className = groupClassName;
@@ -296,8 +364,15 @@ function fillMultiFieldContainer(
     input.type = "text";
     input.value = getElanText(item);
     input.className = inputClassName;
-    input.oninput = (e) =>
-      onChange(index, (e.target as HTMLInputElement).value);
+    if (structuralField && attachedDescs.length > 0) {
+      bindValidatedTextInput(input, () => getElanTextValues(selectedEntry?.[structuralField])[index] || "", (value) => {
+        const error = onChange(index, value);
+        if (!error) refreshMetadata.forEach((refresh) => refresh());
+        return error;
+      });
+    } else {
+      input.oninput = () => onChange(index, input.value);
+    }
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -313,11 +388,10 @@ function fillMultiFieldContainer(
     group.appendChild(inputRow);
 
     // Render attached metadata inline
-    if (attachedDescs.length > 0) {
-      const formKey = getElanText(item);
+    if (structuralField && attachedDescs.length > 0) {
       const metaContainer = document.createElement("div");
       metaContainer.className = "metadata-inline-container";
-      for (const desc of attachedDescs) {
+      for (const [name, desc] of attachedDescs) {
         const metaRow = document.createElement("div");
         metaRow.className = "metadata-row";
 
@@ -328,11 +402,20 @@ function fillMultiFieldContainer(
         const metaInput = document.createElement("input");
         metaInput.type = "text";
         metaInput.className = "metadata-input";
-        metaInput.value = getMetadataValueForForm(desc, formKey);
-        metaInput.readOnly = !desc.editable;
+        const read = () => getMetadataInputState(structuralField, index, name, desc);
+        const refresh = () => {
+          const { value, error, hint } = read();
+          metaInput.value = value;
+          metaInput.setCustomValidity("");
+          metaInput.readOnly = !desc.editable || !!error;
+          metaInput.title = error || hint || "";
+          metaInput.placeholder = metaInput.title;
+        };
+        refreshMetadata.push(refresh);
+        refresh();
         if (desc.editable) {
-          metaInput.oninput = (e) =>
-            handleMetadataChange(structuralField!, formKey, desc, (e.target as HTMLInputElement).value);
+          bindValidatedTextInput(metaInput, () => read().value, (value) =>
+            handleMetadataChange(structuralField, index, name, desc, value));
         }
 
         metaRow.appendChild(metaLabel);
@@ -521,9 +604,9 @@ function updateEntryHeading() {
   }
 }
 
-function markChanged() {
+function markChanged(updateTimestamp = true) {
   console.log("EntryEditor: markChanged called");
-  if (selectedEntry && selectedEntry.$) {
+  if (updateTimestamp && selectedEntry && selectedEntry.$) {
     selectedEntry.$.dateModified = new Date().toISOString();
   }
 
@@ -588,62 +671,104 @@ export function clear() {
   if (refs.noteContainer) refs.noteContainer.innerHTML = "";
 }
 
-function handleAddVariant() {
+function addMetadataParent(field: MetadataParent) {
   if (!selectedEntry) return;
-  const variants = toElanTextArray(selectedEntry.variant);
-  variants.push("");
-  setVariantArray(selectedEntry, variants);
-  syncMetadataKeys("variant", null, "", variants.length - 1);
+  selectedEntry[field] = [...toElanTextArray(selectedEntry[field]), ""];
   renderEntryForm();
   markChanged();
+}
+
+function updateMetadataParent(field: MetadataParent, index: number, value: string | null) {
+  if (!selectedEntry) return;
+  const entry = selectedEntry;
+  const forms = toElanTextArray(entry[field]);
+  if (index < 0 || index >= forms.length) return;
+  const row = forms[index];
+  const draft = getMetadataDraft(row);
+  const oldKey = getElanText(row).trim();
+  const newKey = value?.trim() || "";
+  const descriptors = getAttachedMetadataDescriptors(field);
+  const siblings = forms.filter((_, i) => i !== index).map((form) => getElanText(form).trim());
+  const writes: (() => void)[] = [];
+
+  if (oldKey !== newKey) {
+    if (descriptors.length && newKey && siblings.includes(newKey)) {
+      return "Use a unique spelling so its metadata can be matched.";
+    }
+
+    for (const [name, desc] of descriptors) {
+      const { field: binding, records, error } = readAttachedMetadata(entry, name, desc);
+      if (error) return error;
+      if (metadataMatches(records, newKey).length > 0) {
+        return `The spelling already has an unmatched record in ${name}.`;
+      }
+
+      const matches = metadataMatches(records, oldKey);
+      if (matches.length && (matches.length > 1 || siblings.includes(oldKey))) {
+        return `Resolve the ambiguous records in ${name} before changing this spelling.`;
+      }
+      const previous = matches[0];
+      const metadataValue = previous?.pair?.value || draft?.get(name);
+      if (!metadataValue) continue;
+      if (value !== null && !newKey) {
+        return "Enter a new spelling, or clear its metadata before leaving it blank.";
+      }
+      if (value === null) {
+        if (previous) records.splice(records.indexOf(previous), 1);
+      } else {
+        const replacement = makeMetadataRecord(newKey, metadataValue, desc);
+        if (!replacement) return "This spelling contains a separator used by the metadata field.";
+        if (previous) records.splice(records.indexOf(previous), 1, replacement);
+        else records.push(replacement);
+      }
+      writes.push(() => writeAttachedMetadata(entry, binding, records, desc));
+    }
+  }
+
+  // Commit only after every attached field has passed validation.
+  if (value === null) forms.splice(index, 1);
+  else setElanTextAt(forms, index, value);
+  if (draft && row && typeof row === "object") {
+    metadataDrafts.delete(row);
+    if (value !== null && !newKey) {
+      const blankRow = forms[index];
+      if (blankRow && typeof blankRow === "object") metadataDrafts.set(blankRow, draft);
+    }
+  }
+  entry[field] = forms;
+  writes.forEach((write) => write());
+  if (value === null) {
+    renderEntryForm();
+    markChanged();
+  } else {
+    updateEntryFromForm();
+  }
+}
+
+function handleAddVariant() {
+  addMetadataParent("variant");
 }
 
 function handleRemoveVariant(index: number) {
-  if (!selectedEntry || !selectedEntry.variant) return;
-  const variants = toElanTextArray(selectedEntry.variant);
-  variants.splice(index, 1);
-  setVariantArray(selectedEntry, variants);
-  renderEntryForm();
-  markChanged();
+  const error = updateMetadataParent("variant", index, null);
+  if (error) alert(error);
 }
 
 function handleVariantChange(index: number, value: string) {
-  if (!selectedEntry) return;
-  const variants = toElanTextArray(selectedEntry.variant);
-  setElanTextAt(variants, index, value);
-  setVariantArray(selectedEntry, variants);
-  updateEntryFromForm();
+  return updateMetadataParent("variant", index, value);
 }
 
 function handleAddPhonetic() {
-  if (!selectedEntry) return;
-  const phonetics = toElanTextArray(selectedEntry.phonetic);
-  phonetics.push("");
-  setPhoneticArray(selectedEntry, phonetics);
-  syncMetadataKeys("phonetic", null, "", phonetics.length - 1);
-  renderEntryForm();
-  markChanged();
+  addMetadataParent("phonetic");
 }
 
 function handleRemovePhonetic(index: number) {
-  if (!selectedEntry || !selectedEntry.phonetic) return;
-  const phonetics = toElanTextArray(selectedEntry.phonetic);
-  const removedKey = getElanText(phonetics[index]);
-  phonetics.splice(index, 1);
-  setPhoneticArray(selectedEntry, phonetics);
-  syncMetadataKeys("phonetic", removedKey, null, index);
-  renderEntryForm();
-  markChanged();
+  const error = updateMetadataParent("phonetic", index, null);
+  if (error) alert(error);
 }
 
 function handlePhoneticChange(index: number, value: string) {
-  if (!selectedEntry) return;
-  const phonetics = toElanTextArray(selectedEntry.phonetic);
-  const oldKey = getElanText(phonetics[index]);
-  setElanTextAt(phonetics, index, value);
-  setPhoneticArray(selectedEntry, phonetics);
-  syncMetadataKeys("phonetic", oldKey, value, index);
-  updateEntryFromForm();
+  return updateMetadataParent("phonetic", index, value);
 }
 
 function handleAddNote() {
@@ -840,24 +965,27 @@ function parseRecordList(rawValue: string, desc: RecordListDescriptor): Record<s
   return rows;
 }
 
-function parseKeyedList(rawValue: string, desc: KeyedListDescriptor): { key: string; value: string }[] {
-  if (!rawValue || !rawValue.trim()) return [];
-  const recordStrings = rawValue.split(desc.recordSeparator).map((s) => s.trim());
-  const rows: { key: string; value: string }[] = [];
+function parseKeyedListRecord(raw: string, desc: KeyedListDescriptor): KeyedPair | null {
+  let inner = raw.trim();
+  const [open, close] = desc.recordDelimiters;
+  if (open && inner.startsWith(open)) inner = inner.slice(open.length);
+  if (close && inner.endsWith(close)) inner = inner.slice(0, -close.length);
+  if (!desc.kvSeparator) return null;
 
-  for (const recordStr of recordStrings) {
-    let inner = recordStr;
-    const open = desc.recordDelimiters[0];
-    const close = desc.recordDelimiters[1];
-    if (inner.startsWith(open)) inner = inner.slice(open.length);
-    if (inner.endsWith(close)) inner = inner.slice(0, -close.length);
-    inner = inner.trim();
+  const sepIdx = inner.indexOf(desc.kvSeparator);
+  if (sepIdx === -1) return null;
+  return {
+    key: inner.slice(0, sepIdx).trim(),
+    value: inner.slice(sepIdx + desc.kvSeparator.length).trim(),
+  };
+}
 
-    const sepIdx = inner.indexOf(desc.kvSeparator);
-    if (sepIdx === -1) continue;
-    const key = inner.slice(0, sepIdx).trim();
-    const value = inner.slice(sepIdx + desc.kvSeparator.length).trim();
-    rows.push({ key, value });
+function parseKeyedList(rawValue: string, desc: KeyedListDescriptor): KeyedPair[] {
+  if (!rawValue.trim()) return [];
+  const rows: KeyedPair[] = [];
+  for (const raw of rawValue.split(desc.recordSeparator)) {
+    const pair = parseKeyedListRecord(raw, desc);
+    if (pair) rows.push(pair);
   }
   return rows;
 }
@@ -1516,12 +1644,13 @@ export function load(entry: LexiconEntry | null) {
   originalEntry = JSON.stringify(selectedEntry);
 
   // Reset status UI
+  const hasDraft = hasMetadataDraft(selectedEntry);
   if (refs.entryStatus) {
-    refs.entryStatus.textContent = "No changes";
-    refs.entryStatus.classList.remove("modified");
+    refs.entryStatus.textContent = hasDraft ? "Modified" : "No changes";
+    refs.entryStatus.classList.toggle("modified", hasDraft);
   }
   if (refs.discardChangesBtn) {
-    (refs.discardChangesBtn as HTMLButtonElement).disabled = true;
+    (refs.discardChangesBtn as HTMLButtonElement).disabled = !hasDraft;
   }
 
   renderEntryForm();
